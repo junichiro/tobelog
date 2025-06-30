@@ -7,4 +7,4 @@ pub mod services;
 
 // Re-export commonly used types
 pub use config::Config;
-pub use services::DropboxClient;
+pub use services::{DropboxClient, BlogStorageService, BlogPost, BlogPostMetadata};
