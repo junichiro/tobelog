@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 description = "Personal blog system with Dropbox storage integration"
 authors = ["junichiro"]
+default-run = "tobelog"
 
 [dependencies]
 axum = "0.7"
