@@ -10,7 +10,7 @@ pub struct DropboxClient {
     base_url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileMetadata {
     pub name: String,
     pub path_lower: String,
