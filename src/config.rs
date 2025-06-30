@@ -18,7 +18,7 @@ impl Config {
                 .unwrap_or_else(|_| "3000".to_string())
                 .parse()?,
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://blog.db".to_string()),
-            dropbox_access_token: env::var("DROPBOX_ACCESS_TOKEN").unwrap_or_default(),
+            dropbox_access_token: env::var("DROPBOX_ACCESS_TOKEN")?,
             blog_title: env::var("BLOG_TITLE").unwrap_or_else(|_| "My Personal Blog".to_string()),
         })
     }

@@ -3,7 +3,6 @@ use axum::{
     routing::get,
     Router,
 };
-use std::env;
 use tower::ServiceBuilder;
 use tower_http::cors::CorsLayer;
 use tracing::{info, Level};
@@ -27,7 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(root_handler))
         .route("/health", get(health_handler))
-        .layer(ServiceBuilder::new().layer(CorsLayer::permissive()));
+        .layer(ServiceBuilder::new().layer(CorsLayer::permissive())); // TODO: Configure restrictive CORS policy for production
 
     let addr = format!("{}:{}", config.host, config.port);
     info!("Starting server on {}", addr);

@@ -19,7 +19,6 @@ build/
 
 # Rust
 /target
-Cargo.lock
 
 # Environment
 /.env
