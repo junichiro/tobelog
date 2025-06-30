@@ -16,3 +16,14 @@ vendor/
 dist/
 build/
 *.log
+
+# Rust
+/target
+
+# Environment
+/.env
+
+# Database
+/blog.db
+/blog.db-shm
+/blog.db-wal
