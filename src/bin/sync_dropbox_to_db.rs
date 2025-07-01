@@ -29,6 +29,8 @@ async fn main() -> Result<()> {
     info!("Found {} posts in Dropbox", dropbox_posts.len());
 
     // Get existing posts from database to avoid duplicates
+    // TODO: For very large datasets (10k+ posts), consider fetching slugs in batches
+    // or querying existence individually to reduce memory usage
     let db_posts = database.list_posts(Default::default()).await?;
     let existing_slugs: std::collections::HashSet<String> = db_posts
         .into_iter()

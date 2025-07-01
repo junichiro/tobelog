@@ -78,7 +78,7 @@ tobelogブログシステムへようこそ！
 
     info!("✅ Test post created successfully!");
     info!("🌐 You can now view it at: http://localhost:3000/");
-    info!("📖 Direct link: http://localhost:3000/posts/2024/first-post");
+    info!("📖 Direct link: http://localhost:3000/posts/{}/first-post", Utc::now().format("%Y"));
 
     Ok(())
 }

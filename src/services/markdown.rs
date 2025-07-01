@@ -68,7 +68,6 @@ impl MarkdownService {
     }
 
     /// Convert markdown content to HTML
-    #[allow(dead_code)]
     pub fn markdown_to_html(&self, markdown: &str) -> Result<String> {
         debug!("Converting markdown to HTML");
 

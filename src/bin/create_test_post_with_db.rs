@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::sync::Arc;
-use tobelog::{Config, DropboxClient};
-use tobelog::services::DatabaseService;
+use tobelog::Config;
+use tobelog::services::{DatabaseService, MarkdownService};
 use tobelog::models::CreatePost;
 use tracing::{info, Level};
 
@@ -17,14 +17,12 @@ async fn main() -> Result<()> {
 
     let config = Config::from_env()?;
     
-    // Initialize database service
+    // Initialize services
     let database = Arc::new(DatabaseService::new(&config.database_url).await?);
+    let markdown_service = MarkdownService::new();
 
-    // Create test post for database
-    let create_post = CreatePost {
-        slug: "first-post".to_string(),
-        title: "初めての投稿".to_string(),
-        content: r#"# 初めての投稿
+    // Create test post content
+    let content = r#"# 初めての投稿
 
 tobelogブログシステムへようこそ！
 
@@ -54,8 +52,17 @@ tobelogブログシステムへようこそ！
 3. メディアファイル管理
 4. カテゴリ・タグ機能
 
-記事の作成が正常に動作していることを確認できました！"#.to_string(),
-        html_content: "<h1>初めての投稿</h1><p>tobelogブログシステムへようこそ！</p>".to_string(),
+記事の作成が正常に動作していることを確認できました！"#;
+
+    // Convert markdown to HTML
+    let html_content = markdown_service.markdown_to_html(content)?;
+
+    // Create test post for database
+    let create_post = CreatePost {
+        slug: "first-post".to_string(),
+        title: "初めての投稿".to_string(),
+        content: content.to_string(),
+        html_content,
         excerpt: Some("tobelogでの初めての投稿です。Rustで作ったブログシステムの動作テストを行います。".to_string()),
         category: Some("tech".to_string()),
         tags: vec!["rust".to_string(), "blog".to_string(), "markdown".to_string()],
@@ -73,7 +80,7 @@ tobelogブログシステムへようこそ！
     info!("🆔 Post ID: {}", post.id);
     info!("🔗 Slug: {}", post.slug);
     info!("🌐 You can now view it at: http://localhost:3000/");
-    info!("📖 Direct link: http://localhost:3000/posts/2024/first-post");
+    info!("📖 Direct link: http://localhost:3000/posts/{}/first-post", chrono::Utc::now().format("%Y"));
 
     Ok(())
 }
