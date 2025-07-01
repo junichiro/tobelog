@@ -229,7 +229,13 @@ async fn list_drafts_handler(State(state): State<AppState>) -> Result<Json<Value
 // async fn blog_stats_handler(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
 //     match state.blog_storage.get_blog_stats().await {
 //         Ok(stats) => {
-//             Ok(Json(serde_json::to_value(stats).unwrap()))
+//             match serde_json::to_value(stats) {
+//                 Ok(value) => Ok(Json(value)),
+//                 Err(e) => {
+//                     tracing::error!("Failed to serialize stats: {}", e);
+//                     Ok(Json(json!({ "error": "Failed to serialize stats" })))
+//                 }
+//             }
 //         }
 //         Err(e) => {
 //             let response = json!({

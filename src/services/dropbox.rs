@@ -69,9 +69,7 @@ impl DropboxClient {
         Ok(headers)
     }
 
-    pub async fn test_connection(&self) -> Result<HashMap<String, serde_json::Value>> {
-        let url = format!("{}/2/users/get_current_account", self.base_url);
-        
+    fn create_auth_headers(&self) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         let auth_value = format!("Bearer {}", self.access_token);
         headers.insert(
@@ -79,6 +77,12 @@ impl DropboxClient {
             HeaderValue::from_str(&auth_value)
                 .context("Failed to create authorization header")?,
         );
+        Ok(headers)
+    }
+
+    pub async fn test_connection(&self) -> Result<HashMap<String, serde_json::Value>> {
+        let url = format!("{}/2/users/get_current_account", self.base_url);
+        let headers = self.create_auth_headers()?;
 
         let response = self
             .client
