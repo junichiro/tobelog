@@ -40,6 +40,7 @@ impl TemplateService {
     }
 
     /// Render template with additional context variables
+    #[allow(dead_code)]
     pub fn render_with_context<T: Serialize>(
         &self,
         template_name: &str,
@@ -62,6 +63,7 @@ impl TemplateService {
     }
 
     /// Get template engine instance
+    #[allow(dead_code)]
     pub fn tera(&self) -> &Tera {
         &self.tera
     }

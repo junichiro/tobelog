@@ -7,7 +7,7 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub dropbox_access_token: String,
-    pub blog_title: String,
+    // pub blog_title: String, // TODO: Use when implementing blog title feature
 }
 
 impl Config {
@@ -19,7 +19,7 @@ impl Config {
                 .parse()?,
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://blog.db".to_string()),
             dropbox_access_token: env::var("DROPBOX_ACCESS_TOKEN")?,
-            blog_title: env::var("BLOG_TITLE").unwrap_or_else(|_| "My Personal Blog".to_string()),
+            // blog_title: env::var("BLOG_TITLE").unwrap_or_else(|_| "My Personal Blog".to_string()),
         })
     }
 }

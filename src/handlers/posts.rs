@@ -12,6 +12,7 @@ use crate::services::template::{HomePageContext, PostPageContext, PostSummary, P
 
 /// Query parameters for post listing
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // These fields will be used for pagination/filtering in the future
 pub struct PostQuery {
     pub page: Option<usize>,
     pub per_page: Option<usize>,
@@ -24,6 +25,7 @@ pub struct PostQuery {
 #[derive(Clone)]
 pub struct AppState {
     pub database: DatabaseService,
+    #[allow(dead_code)] // Will be used for markdown processing in the future
     pub markdown: MarkdownService,
     pub templates: TemplateService,
 }

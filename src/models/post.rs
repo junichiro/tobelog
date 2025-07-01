@@ -95,6 +95,7 @@ pub struct TagStat {
 
 impl Post {
     /// Create a new post with generated UUID and timestamps
+    #[allow(dead_code)]
     pub fn new(data: CreatePost) -> Self {
         let now = Utc::now();
         let published_at = if data.published { Some(now) } else { None };
@@ -125,11 +126,13 @@ impl Post {
     }
 
     /// Set tags from a vector
+    #[allow(dead_code)]
     pub fn set_tags(&mut self, tags: Vec<String>) {
         self.tags = serde_json::to_string(&tags).unwrap_or_default();
     }
 
     /// Update post data
+    #[allow(dead_code)]
     pub fn update(&mut self, data: UpdatePost) {
         if let Some(title) = data.title {
             self.title = title;
@@ -172,11 +175,13 @@ impl Post {
     }
 
     /// Check if post is published
+    #[allow(dead_code)]
     pub fn is_published(&self) -> bool {
         self.published
     }
 
     /// Check if post is draft
+    #[allow(dead_code)]
     pub fn is_draft(&self) -> bool {
         !self.published
     }

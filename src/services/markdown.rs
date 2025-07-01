@@ -23,6 +23,7 @@ impl MarkdownService {
     }
 
     /// Parse markdown content with frontmatter and convert to HTML
+    #[allow(dead_code)]
     pub fn parse_markdown(&self, content: &str) -> Result<ParsedMarkdown> {
         debug!("Parsing markdown content");
 
@@ -37,6 +38,7 @@ impl MarkdownService {
     }
 
     /// Extract YAML frontmatter from markdown content
+    #[allow(dead_code)]
     fn extract_frontmatter(&self, content: &str) -> Result<(HashMap<String, serde_yaml::Value>, String)> {
         let content = content.trim();
         
@@ -66,6 +68,7 @@ impl MarkdownService {
     }
 
     /// Convert markdown content to HTML
+    #[allow(dead_code)]
     fn markdown_to_html(&self, markdown: &str) -> Result<String> {
         debug!("Converting markdown to HTML");
 
@@ -85,6 +88,7 @@ impl MarkdownService {
     }
 
     /// Extract a specific field from frontmatter with type conversion
+    #[allow(dead_code)]
     pub fn extract_frontmatter_field<T>(&self, frontmatter: &HashMap<String, serde_yaml::Value>, key: &str) -> Option<T>
     where
         T: for<'de> Deserialize<'de>,
@@ -95,6 +99,7 @@ impl MarkdownService {
     }
 
     /// Extract title from frontmatter or generate from content
+    #[allow(dead_code)]
     pub fn extract_title(&self, frontmatter: &HashMap<String, serde_yaml::Value>, content: &str) -> String {
         // Try to get title from frontmatter
         if let Some(title) = self.extract_frontmatter_field::<String>(frontmatter, "title") {
@@ -114,33 +119,39 @@ impl MarkdownService {
     }
 
     /// Extract tags from frontmatter
+    #[allow(dead_code)]
     pub fn extract_tags(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Vec<String> {
         self.extract_frontmatter_field::<Vec<String>>(frontmatter, "tags")
             .unwrap_or_default()
     }
 
     /// Extract category from frontmatter
+    #[allow(dead_code)]
     pub fn extract_category(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Option<String> {
         self.extract_frontmatter_field::<String>(frontmatter, "category")
     }
 
     /// Extract published status from frontmatter (defaults to true)
+    #[allow(dead_code)]
     pub fn extract_published(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> bool {
         self.extract_frontmatter_field::<bool>(frontmatter, "published")
             .unwrap_or(true)
     }
 
     /// Extract author from frontmatter
+    #[allow(dead_code)]
     pub fn extract_author(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Option<String> {
         self.extract_frontmatter_field::<String>(frontmatter, "author")
     }
 
     /// Extract excerpt from frontmatter
+    #[allow(dead_code)]
     pub fn extract_excerpt(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Option<String> {
         self.extract_frontmatter_field::<String>(frontmatter, "excerpt")
     }
 
     /// Generate excerpt from content if not provided in frontmatter
+    #[allow(dead_code)]
     pub fn generate_excerpt(&self, content: &str, max_words: usize) -> String {
         let words: Vec<&str> = content
             .split_whitespace()
