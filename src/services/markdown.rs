@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use tracing::{debug, warn};
 
 /// Markdown processing service for converting markdown to HTML and extracting frontmatter
+#[derive(Clone)]
 pub struct MarkdownService;
 
 /// Parsed markdown content with frontmatter and body

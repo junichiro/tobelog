@@ -1,14 +1,14 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{Html, Json},
+    response::Json,
     routing::get,
     Router,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tower::ServiceBuilder;
-use tower_http::cors::CorsLayer;
+use tower_http::{cors::CorsLayer, services::ServeDir};
 use tracing::{info, warn, Level};
 use tracing_subscriber;
 
@@ -17,12 +17,15 @@ mod handlers;
 mod models;
 mod services;
 
-use services::{DropboxClient, BlogStorageService};
+use handlers::{posts, api};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService};
 
 #[derive(Clone)]
 struct AppState {
     dropbox_client: Arc<DropboxClient>,
     blog_storage: Arc<BlogStorageService>,
+    database: Arc<DatabaseService>,
+    markdown: Arc<MarkdownService>,
     config: Arc<config::Config>,
 }
 
@@ -44,6 +47,14 @@ async fn main() -> anyhow::Result<()> {
     // Initialize blog storage service
     let blog_storage = Arc::new(BlogStorageService::new(dropbox_client.clone()));
     info!("Blog storage service initialized");
+
+    // Initialize database service
+    let database = Arc::new(DatabaseService::new(&config.database_url).await?);
+    info!("Database service initialized");
+
+    // Initialize markdown service
+    let markdown = Arc::new(MarkdownService::new());
+    info!("Markdown service initialized");
 
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
@@ -67,18 +78,51 @@ async fn main() -> anyhow::Result<()> {
     let app_state = AppState {
         dropbox_client,
         blog_storage,
+        database: database.clone(),
+        markdown: markdown.clone(),
         config: Arc::new(config.clone()),
     };
+
+    // Create handler states
+    let posts_state = posts::AppState {
+        database: (*database).clone(),
+        markdown: (*markdown).clone(),
+    };
+
+    let api_state = api::ApiState {
+        database: (*database).clone(),
+    };
     
-    let app = Router::new()
-        .route("/", get(root_handler))
+    // Create separate routers for each state type
+    let web_pages_router = Router::new()
+        .route("/", get(posts::home_page))
+        .route("/posts/:year/:slug", get(posts::post_page))
+        .with_state(posts_state.clone());
+
+    let api_router = Router::new()
+        .route("/api/posts", get(api::list_posts_api))
+        .route("/api/posts/:slug", get(api::get_post_api))
+        .route("/api/blog/stats", get(api::blog_stats_api))
+        .route("/api/categories", get(api::list_categories_api))
+        .route("/api/tags", get(api::list_tags_api))
+        .route("/api/search", get(api::search_posts_api))
+        .with_state(api_state);
+
+    let legacy_router = Router::new()
         .route("/health", get(health_handler))
         .route("/api/dropbox/status", get(dropbox_status_handler))
         .route("/api/blog/posts", get(list_posts_handler))
         .route("/api/blog/posts/:slug", get(get_post_handler))
         .route("/api/blog/drafts", get(list_drafts_handler))
-        .route("/api/blog/stats", get(blog_stats_handler))
-        .with_state(app_state)
+        .with_state(app_state);
+
+    let app = Router::new()
+        .merge(web_pages_router)
+        .merge(api_router)
+        .merge(legacy_router)
+        // Static file serving
+        .nest_service("/static", ServeDir::new("static"))
+        // Middleware
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive())); // TODO: Configure restrictive CORS policy for production
 
     let addr = format!("{}:{}", config.host, config.port);
@@ -90,9 +134,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn root_handler() -> Html<&'static str> {
-    Html("<h1>Tobelog - Personal Blog System</h1><p>Coming soon...</p>")
-}
+// Remove the old root_handler since we're using the new handlers
 
 async fn health_handler() -> &'static str {
     "OK"
