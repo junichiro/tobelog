@@ -56,7 +56,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains('copy-code-btn')) {
             const codeBlock = e.target.parentElement.querySelector('code');
             const codeText = Array.from(codeBlock.childNodes)
-                .filter(node => node.nodeType === Node.TEXT_NODE || node.tagName !== 'SPAN')
+                .filter(node => {
+                    // Exclude the line number spans from the copied text
+                    return !(node.nodeType === Node.ELEMENT_NODE && node.classList.contains('line-number'));
+                })
                 .map(node => node.textContent)
                 .join('');
             

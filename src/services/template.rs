@@ -80,7 +80,7 @@ fn truncate_filter(value: &tera::Value, args: &HashMap<String, tera::Value>) -> 
         .and_then(|v| v.as_u64())
         .unwrap_or(100) as usize;
     
-    if s.len() <= length {
+    if s.chars().count() <= length {
         Ok(tera::Value::String(s.to_string()))
     } else {
         let truncated = s.chars().take(length).collect::<String>();

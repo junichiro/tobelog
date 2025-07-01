@@ -37,11 +37,10 @@ async fn test_template_service() -> Result<()> {
     // Verify expected templates exist
     let expected_templates = ["base.html", "index.html", "post.html"];
     for template in expected_templates {
-        if available_templates.iter().any(|t| t.ends_with(template)) {
-            info!("✅ Template found: {}", template);
-        } else {
-            info!("⚠️  Template not found: {}", template);
+        if !available_templates.iter().any(|t| t.ends_with(template)) {
+            anyhow::bail!("Template not found: {}", template);
         }
+        info!("✅ Template found: {}", template);
     }
 
     Ok(())
@@ -93,18 +92,14 @@ async fn test_template_rendering() -> Result<()> {
     info!("✅ Home page template rendered: {} characters", home_html.len());
 
     // Verify key elements are present
-    if home_html.contains("Test Blog") {
-        info!("✅ Site title rendered correctly");
-    }
-    if home_html.contains("Sample Post 1") {
-        info!("✅ Post titles rendered correctly");
-    }
-    if home_html.contains("TailwindCSS") {
-        info!("✅ TailwindCSS included");
-    }
-    if home_html.contains("dark:") {
-        info!("✅ Dark mode classes present");
-    }
+    anyhow::ensure!(home_html.contains("Test Blog"), "Site title not rendered correctly");
+    info!("✅ Site title rendered correctly");
+    anyhow::ensure!(home_html.contains("Sample Post 1"), "Post titles not rendered correctly");
+    info!("✅ Post titles rendered correctly");
+    anyhow::ensure!(home_html.contains("TailwindCSS"), "TailwindCSS not included");
+    info!("✅ TailwindCSS included");
+    anyhow::ensure!(home_html.contains("dark:"), "Dark mode classes not present");
+    info!("✅ Dark mode classes present");
 
     // Test post page template
     let sample_post = PostData {
@@ -133,15 +128,12 @@ async fn test_template_rendering() -> Result<()> {
     info!("✅ Post page template rendered: {} characters", post_html.len());
 
     // Verify key elements are present
-    if post_html.contains("Test Post Title") {
-        info!("✅ Post title rendered correctly");
-    }
-    if post_html.contains("<h1>Test Content</h1>") {
-        info!("✅ HTML content rendered correctly");
-    }
-    if post_html.contains("prose") {
-        info!("✅ Prose styling classes present");
-    }
+    anyhow::ensure!(post_html.contains("Test Post Title"), "Post title not rendered correctly");
+    info!("✅ Post title rendered correctly");
+    anyhow::ensure!(post_html.contains("<h1>Test Content</h1>"), "HTML content not rendered correctly");
+    info!("✅ HTML content rendered correctly");
+    anyhow::ensure!(post_html.contains("prose"), "Prose styling classes not present");
+    info!("✅ Prose styling classes present");
 
     info!("🎨 Template rendering tests completed successfully");
     Ok(())
