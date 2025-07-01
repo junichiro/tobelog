@@ -93,32 +93,35 @@ async fn main() -> anyhow::Result<()> {
         database: (*database).clone(),
     };
     
-    let app = Router::new()
-        // Web pages (HTML responses)
+    // Create separate routers for each state type
+    let web_pages_router = Router::new()
         .route("/", get(posts::home_page))
         .route("/posts/:year/:slug", get(posts::post_page))
-        .with_state(posts_state.clone())
-        
-        // API endpoints (JSON responses)
+        .with_state(posts_state.clone());
+
+    let api_router = Router::new()
         .route("/api/posts", get(api::list_posts_api))
         .route("/api/posts/:slug", get(api::get_post_api))
         .route("/api/blog/stats", get(api::blog_stats_api))
         .route("/api/categories", get(api::list_categories_api))
         .route("/api/tags", get(api::list_tags_api))
         .route("/api/search", get(api::search_posts_api))
-        .with_state(api_state)
-        
-        // Legacy API endpoints for backward compatibility
+        .with_state(api_state);
+
+    let legacy_router = Router::new()
         .route("/health", get(health_handler))
         .route("/api/dropbox/status", get(dropbox_status_handler))
         .route("/api/blog/posts", get(list_posts_handler))
         .route("/api/blog/posts/:slug", get(get_post_handler))
         .route("/api/blog/drafts", get(list_drafts_handler))
-        .with_state(app_state)
-        
+        .with_state(app_state);
+
+    let app = Router::new()
+        .merge(web_pages_router)
+        .merge(api_router)
+        .merge(legacy_router)
         // Static file serving
         .nest_service("/static", ServeDir::new("static"))
-        
         // Middleware
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive())); // TODO: Configure restrictive CORS policy for production
 

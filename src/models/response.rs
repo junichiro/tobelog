@@ -2,7 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::metadata::PostMetadata;
 
 /// Response model for individual post details
 #[derive(Debug, Clone, Serialize, Deserialize)]

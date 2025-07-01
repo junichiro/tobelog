@@ -3,14 +3,11 @@ use axum::{
     http::StatusCode,
     response::{Html, Json},
 };
+use html_escape::encode_text;
 use serde::Deserialize;
-use serde_json::json;
 use tracing::{debug, error};
 
-use crate::models::{
-    response::{PostListResponse, PostPageData, PostResponse, PostSummary, HomePageData, 
-              ErrorResponse, BlogStatsResponse, PostNavigation, CategoryInfo}
-};
+use crate::models::response::ErrorResponse;
 use crate::services::{DatabaseService, MarkdownService};
 
 /// Query parameters for post listing
@@ -32,8 +29,8 @@ pub struct AppState {
 
 /// GET / - Home page showing recent and featured posts
 pub async fn home_page(
-    Query(query): Query<PostQuery>,
-    State(state): State<AppState>
+    Query(_query): Query<PostQuery>,
+    State(_state): State<AppState>
 ) -> Result<Html<String>, (StatusCode, Json<ErrorResponse>)> {
     debug!("Loading home page");
 
@@ -224,18 +221,22 @@ async fn generate_post_html(post: &crate::models::Post) -> anyhow::Result<String
     let tags_html = if post.get_tags().is_empty() {
         String::new()
     } else {
+        let escaped_tags: Vec<String> = post.get_tags()
+            .iter()
+            .map(|tag| encode_text(tag).to_string())
+            .collect();
         format!(
             "<div class=\"tags\">Tags: {}</div>",
-            post.get_tags().join(", ")
+            escaped_tags.join(", ")
         )
     };
 
     let category_html = post.category.as_ref()
-        .map(|cat| format!("<div class=\"category\">Category: {}</div>", cat))
+        .map(|cat| format!("<div class=\"category\">Category: {}</div>", encode_text(cat)))
         .unwrap_or_default();
 
     let author_html = post.author.as_ref()
-        .map(|author| format!(" by {}", author))
+        .map(|author| format!(" by {}", encode_text(author)))
         .unwrap_or_default();
 
     let published_date = post.published_at
@@ -364,7 +365,7 @@ async fn generate_post_html(post: &crate::models::Post) -> anyhow::Result<String
 </body>
 </html>
 "#,
-        title = post.title,
+        title = encode_text(&post.title),
         published_date = published_date,
         author = author_html,
         category = category_html,

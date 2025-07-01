@@ -390,6 +390,52 @@ impl DatabaseService {
         })
     }
 
+    /// Count posts with filters for efficient pagination
+    pub async fn count_posts(&self, filters: PostFilters) -> Result<i64> {
+        debug!("Counting posts with filters: {:?}", filters);
+
+        let mut query = "SELECT COUNT(*) FROM posts WHERE 1=1".to_string();
+        let mut params = Vec::new();
+
+        if let Some(published) = filters.published {
+            query.push_str(" AND published = ?");
+            params.push(if published { "1" } else { "0" }.to_string());
+        }
+
+        if let Some(category) = &filters.category {
+            query.push_str(" AND category = ?");
+            params.push(category.clone());
+        }
+
+        if let Some(tag) = &filters.tag {
+            query.push_str(" AND tags LIKE ?");
+            params.push(format!("%\"{}\"%", tag));
+        }
+
+        if let Some(author) = &filters.author {
+            query.push_str(" AND author = ?");
+            params.push(author.clone());
+        }
+
+        if let Some(featured) = filters.featured {
+            query.push_str(" AND featured = ?");
+            params.push(if featured { "1" } else { "0" }.to_string());
+        }
+
+        let mut sql_query = sqlx::query_scalar::<_, i64>(&query);
+        for param in params {
+            sql_query = sql_query.bind(param);
+        }
+
+        let count = sql_query
+            .fetch_one(&self.pool)
+            .await
+            .context("Failed to count posts")?;
+
+        debug!("Found {} posts matching filters", count);
+        Ok(count)
+    }
+
     /// Get database pool reference
     pub fn pool(&self) -> &Pool<Sqlite> {
         &self.pool

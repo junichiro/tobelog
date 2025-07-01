@@ -62,16 +62,16 @@ pub async fn list_posts_api(
             )
         })?;
 
-    // Get total count for pagination (without limit/offset)
+    // Get total count for pagination using efficient count method
     let count_filters = PostFilters {
         published: query.published,
-        category: query.category,
-        tag: query.tag,
+        category: query.category.clone(),
+        tag: query.tag.clone(),
         featured: query.featured,
         ..Default::default()
     };
     
-    let all_posts = state.database.list_posts(count_filters).await
+    let total_count = state.database.count_posts(count_filters).await
         .map_err(|e| {
             error!("Database error counting posts: {}", e);
             (
@@ -80,8 +80,8 @@ pub async fn list_posts_api(
             )
         })?;
 
-    let total = all_posts.len();
-    let total_pages = (total + per_page - 1) / per_page; // Ceiling division
+    let total = total_count as usize;
+    let total_pages = total.div_ceil(per_page);
 
     // Convert posts to summaries
     let post_summaries: Vec<PostSummary> = posts.into_iter()
