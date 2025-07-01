@@ -18,7 +18,7 @@ mod models;
 mod services;
 
 use handlers::{posts, api};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService};
 
 #[derive(Clone)]
 struct AppState {
@@ -56,6 +56,10 @@ async fn main() -> anyhow::Result<()> {
     let markdown = Arc::new(MarkdownService::new());
     info!("Markdown service initialized");
 
+    // Initialize template service
+    let templates = Arc::new(TemplateService::new()?);
+    info!("Template service initialized");
+
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -87,6 +91,7 @@ async fn main() -> anyhow::Result<()> {
     let posts_state = posts::AppState {
         database: (*database).clone(),
         markdown: (*markdown).clone(),
+        templates: (*templates).clone(),
     };
 
     let api_state = api::ApiState {
