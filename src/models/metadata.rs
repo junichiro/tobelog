@@ -45,7 +45,7 @@ pub struct SiteMetadata {
     pub last_updated: DateTime<Utc>,
     pub categories: Vec<CategoryMeta>,
     pub tags: Vec<TagMeta>,
-    pub recent_posts: Vec<PostSummary>,
+    pub recent_posts: Vec<MetaPostSummary>,
 }
 
 /// Category metadata
@@ -68,9 +68,9 @@ pub struct TagMeta {
     pub created_at: DateTime<Utc>,
 }
 
-/// Post summary for metadata
+/// Post summary for metadata (renamed to avoid conflict)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostSummary {
+pub struct MetaPostSummary {
     pub slug: String,
     pub title: String,
     pub excerpt: Option<String>,

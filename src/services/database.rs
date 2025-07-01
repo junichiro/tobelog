@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::models::{Post, CreatePost, UpdatePost, PostFilters, PostStats, CategoryStat};
 
 /// Database service for managing SQLite operations
+#[derive(Clone)]
 pub struct DatabaseService {
     pool: Pool<Sqlite>,
 }
