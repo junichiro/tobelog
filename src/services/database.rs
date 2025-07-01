@@ -51,6 +51,7 @@ impl DatabaseService {
     }
 
     /// Create a new post
+    #[allow(dead_code)]
     pub async fn create_post(&self, data: CreatePost) -> Result<Post> {
         debug!("Creating new post: {}", data.slug);
 
@@ -109,6 +110,7 @@ impl DatabaseService {
     }
 
     /// Get post by ID
+    #[allow(dead_code)]
     pub async fn get_post_by_id(&self, id: Uuid) -> Result<Option<Post>> {
         debug!("Getting post by ID: {}", id);
 
@@ -129,6 +131,7 @@ impl DatabaseService {
     }
 
     /// Update post
+    #[allow(dead_code)]
     pub async fn update_post(&self, id: Uuid, data: UpdatePost) -> Result<Option<Post>> {
         debug!("Updating post: {}", id);
 
@@ -171,6 +174,7 @@ impl DatabaseService {
     }
 
     /// Delete post
+    #[allow(dead_code)]
     pub async fn delete_post(&self, id: Uuid) -> Result<bool> {
         debug!("Deleting post: {}", id);
 
@@ -437,6 +441,7 @@ impl DatabaseService {
     }
 
     /// Get database pool reference
+    #[allow(dead_code)]
     pub fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
     }
