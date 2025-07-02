@@ -4,8 +4,10 @@ pub mod dropbox;
 pub mod blog_storage;
 pub mod markdown;
 pub mod database;
+pub mod template;
 
 pub use dropbox::DropboxClient;
-pub use blog_storage::{BlogStorageService, BlogPost, BlogPostMetadata, BlogFolders};
-pub use markdown::{MarkdownService, ParsedMarkdown};
+pub use blog_storage::BlogStorageService;
+pub use markdown::MarkdownService;
 pub use database::DatabaseService;
+pub use template::TemplateService;

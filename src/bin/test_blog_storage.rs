@@ -1,7 +1,8 @@
 use anyhow::Result;
 use chrono::Utc;
 use std::sync::Arc;
-use tobelog::{BlogStorageService, BlogPost, BlogPostMetadata, Config, DropboxClient};
+use tobelog::{BlogStorageService, Config, DropboxClient};
+use tobelog::services::blog_storage::{BlogPost, BlogPostMetadata};
 use tracing::{error, info, warn, Level};
 
 #[tokio::main]

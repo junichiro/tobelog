@@ -18,7 +18,7 @@ mod models;
 mod services;
 
 use handlers::{posts, api};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService};
 
 #[derive(Clone)]
 struct AppState {
@@ -56,6 +56,9 @@ async fn main() -> anyhow::Result<()> {
     let markdown = Arc::new(MarkdownService::new());
     info!("Markdown service initialized");
 
+    // Initialize template service
+    let templates = Arc::new(TemplateService::new()?);
+    info!("Template service initialized");
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -87,6 +90,7 @@ async fn main() -> anyhow::Result<()> {
     let posts_state = posts::AppState {
         database: (*database).clone(),
         markdown: (*markdown).clone(),
+        templates: (*templates).clone(),
     };
 
     let api_state = api::ApiState {
@@ -222,16 +226,23 @@ async fn list_drafts_handler(State(state): State<AppState>) -> Result<Json<Value
     }
 }
 
-async fn blog_stats_handler(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
-    match state.blog_storage.get_blog_stats().await {
-        Ok(stats) => {
-            Ok(Json(serde_json::to_value(stats).unwrap()))
-        }
-        Err(e) => {
-            let response = json!({
-                "error": format!("Failed to get blog stats: {}", e)
-            });
-            Ok(Json(response))
-        }
-    }
-}
+// Unused handler - commented out to avoid dead code warning
+// async fn blog_stats_handler(State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+//     match state.blog_storage.get_blog_stats().await {
+//         Ok(stats) => {
+//             match serde_json::to_value(stats) {
+//                 Ok(value) => Ok(Json(value)),
+//                 Err(e) => {
+//                     tracing::error!("Failed to serialize stats: {}", e);
+//                     Ok(Json(json!({ "error": "Failed to serialize stats" })))
+//                 }
+//             }
+//         }
+//         Err(e) => {
+//             let response = json!({
+//                 "error": format!("Failed to get blog stats: {}", e)
+//             });
+//             Ok(Json(response))
+//         }
+//     }
+// }

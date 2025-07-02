@@ -115,6 +115,7 @@ impl BlogStorageService {
     }
 
     /// Create a new service with custom folder configuration
+    #[allow(dead_code)]
     pub fn with_folders(dropbox_client: Arc<DropboxClient>, folders: BlogFolders) -> Self {
         let rate_limiter = RateLimiter::new(450, Duration::from_secs(60));
         
@@ -262,6 +263,7 @@ impl BlogStorageService {
     }
 
     /// Save a blog post (create or update)
+    #[allow(dead_code)]
     pub async fn save_post(&self, post: &BlogPost, is_draft: bool) -> Result<()> {
         self.check_rate_limit().await?;
         
@@ -280,6 +282,7 @@ impl BlogStorageService {
     }
 
     /// Delete a blog post
+    #[allow(dead_code)]
     pub async fn delete_post(&self, slug: &str) -> Result<bool> {
         self.check_rate_limit().await?;
         
@@ -304,6 +307,7 @@ impl BlogStorageService {
     }
 
     /// Move a post between drafts and published
+    #[allow(dead_code)]
     pub async fn publish_post(&self, slug: &str) -> Result<bool> {
         info!("Publishing post with slug: {}", slug);
         
@@ -448,6 +452,7 @@ impl BlogStorageService {
     }
 
     /// Serialize blog post to markdown with frontmatter
+    #[allow(dead_code)]
     fn serialize_blog_post(&self, post: &BlogPost) -> Result<String> {
         let mut frontmatter = serde_yaml::to_string(&post.metadata)
             .context("Failed to serialize metadata to YAML")?;
@@ -476,6 +481,7 @@ impl BlogStorageService {
     }
 
     /// Get blog statistics
+    #[allow(dead_code)]
     pub async fn get_blog_stats(&self) -> Result<serde_json::Map<String, serde_json::Value>> {
         let published = self.list_published_posts().await?;
         let drafts = self.list_draft_posts().await?;

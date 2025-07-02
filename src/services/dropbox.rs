@@ -69,9 +69,20 @@ impl DropboxClient {
         Ok(headers)
     }
 
+    fn create_auth_headers(&self) -> Result<HeaderMap> {
+        let mut headers = HeaderMap::new();
+        let auth_value = format!("Bearer {}", self.access_token);
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&auth_value)
+                .context("Failed to create authorization header")?,
+        );
+        Ok(headers)
+    }
+
     pub async fn test_connection(&self) -> Result<HashMap<String, serde_json::Value>> {
         let url = format!("{}/2/users/get_current_account", self.base_url);
-        let headers = self.create_headers()?;
+        let headers = self.create_auth_headers()?;
 
         let response = self
             .client
@@ -183,6 +194,7 @@ impl DropboxClient {
         Ok(content)
     }
 
+    #[allow(dead_code)]
     pub async fn upload_file(&self, path: &str, content: &str) -> Result<FileMetadata> {
         let url = "https://content.dropboxapi.com/2/files/upload";
         
@@ -237,6 +249,7 @@ impl DropboxClient {
         Ok(metadata)
     }
 
+    #[allow(dead_code)]
     pub async fn delete_file(&self, path: &str) -> Result<FileMetadata> {
         let url = format!("{}/2/files/delete_v2", self.base_url);
         let headers = self.create_headers()?;

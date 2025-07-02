@@ -97,6 +97,7 @@ pub struct MediaMetadata {
 
 impl PostMetadata {
     /// Create new post metadata with default values
+    #[allow(dead_code)]
     pub fn new(title: String, slug: String) -> Self {
         let now = Utc::now();
         Self {
@@ -117,6 +118,7 @@ impl PostMetadata {
         }
     }
 
+    #[allow(dead_code)]
     /// Create from frontmatter data
     pub fn from_frontmatter(
         frontmatter: &HashMap<String, serde_yaml::Value>,
@@ -251,6 +253,7 @@ impl PostMetadata {
     }
 
     /// Convert to frontmatter HashMap
+    #[allow(dead_code)]
     pub fn to_frontmatter(&self) -> HashMap<String, serde_yaml::Value> {
         let mut frontmatter = HashMap::new();
 
@@ -312,12 +315,14 @@ impl PostMetadata {
     }
 
     /// Update metadata
+    #[allow(dead_code)]
     pub fn update(&mut self) {
         self.updated_at = Some(Utc::now());
         self.version += 1;
     }
 
     /// Mark as published
+    #[allow(dead_code)]
     pub fn publish(&mut self) {
         if !self.published {
             self.published = true;
@@ -327,6 +332,7 @@ impl PostMetadata {
     }
 
     /// Mark as unpublished
+    #[allow(dead_code)]
     pub fn unpublish(&mut self) {
         if self.published {
             self.published = false;

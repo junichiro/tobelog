@@ -484,7 +484,7 @@ pub async fn update_post_api(
             )
         })?;
 
-    let mut existing_post = match existing_post {
+    let existing_post = match existing_post {
         Some(post) => post,
         None => {
             return Err((

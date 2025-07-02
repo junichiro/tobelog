@@ -216,6 +216,7 @@ async fn test_database_operations() -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn test_integration() -> Result<()> {
     info!("🔄 Testing Markdown + Database integration...");
 
