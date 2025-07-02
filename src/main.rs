@@ -19,7 +19,7 @@ mod middleware;
 mod models;
 mod services;
 
-use handlers::{posts, api};
+use handlers::{posts, api, admin};
 use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService};
 
 #[derive(Clone)]
@@ -100,6 +100,12 @@ async fn main() -> anyhow::Result<()> {
         markdown: (*markdown).clone(),
         blog_storage: blog_storage.clone(),
     };
+
+    let admin_state = admin::AdminState {
+        database: (*database).clone(),
+        markdown: (*markdown).clone(),
+        templates: (*templates).clone(),
+    };
     
     // Create separate routers for each state type
     let web_pages_router = Router::new()
@@ -125,6 +131,13 @@ async fn main() -> anyhow::Result<()> {
         .with_state(api_state)
         .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
 
+    let admin_router = Router::new()
+        .route("/admin", get(admin::dashboard))
+        .route("/admin/posts", get(admin::posts_list))
+        .route("/admin/new", get(admin::new_post_form))
+        .route("/admin/edit/:slug", get(admin::edit_post_form))
+        .with_state(admin_state);
+
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
         .route("/api/dropbox/status", get(dropbox_status_handler))
@@ -136,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(web_pages_router)
         .merge(api_router)
+        .merge(admin_router)
         .merge(legacy_router)
         // Static file serving
         .nest_service("/static", ServeDir::new("static"))
