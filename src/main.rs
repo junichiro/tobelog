@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app_state = AppState {
         dropbox_client,
-        blog_storage,
+        blog_storage: blog_storage.clone(),
         database: database.clone(),
         markdown: markdown.clone(),
         config: Arc::new(config.clone()),
@@ -91,6 +91,8 @@ async fn main() -> anyhow::Result<()> {
 
     let api_state = api::ApiState {
         database: (*database).clone(),
+        markdown: (*markdown).clone(),
+        blog_storage: blog_storage.clone(),
     };
     
     // Create separate routers for each state type
