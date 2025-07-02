@@ -198,6 +198,7 @@ async fn main() -> anyhow::Result<()> {
         // LLM import admin routes
         .route("/admin/import", get(admin::admin_import_page).post(admin::admin_process_import))
         .route("/admin/posts/:slug/edit", get(admin::admin_edit_post_page))
+        .route("/admin/llm-import", get(admin::llm_import_form))
         .with_state(admin_state);
 
     let version_router = Router::new()

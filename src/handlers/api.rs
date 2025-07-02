@@ -357,6 +357,102 @@ pub struct ImportMarkdownRequest {
     pub overwrite: Option<bool>,
 }
 
+/// Request body for LLM article import
+#[derive(Debug, Deserialize)]
+pub struct LLMArticleImportRequest {
+    pub content: String,
+    pub format: LLMFormat,
+    pub title: Option<String>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub published: Option<bool>,
+    pub author: Option<String>,
+    pub auto_structure: Option<bool>,
+    pub auto_metadata: Option<bool>,
+    pub obsidian_integration: Option<ObsidianIntegration>,
+}
+
+/// LLM format types
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum LLMFormat {
+    ChatGPT,
+    Claude,
+    PlainText,
+    Obsidian,
+}
+
+/// Obsidian integration settings
+#[derive(Debug, Deserialize, Clone)]
+pub struct ObsidianIntegration {
+    pub convert_wikilinks: Option<bool>,
+    pub preserve_tags: Option<bool>,
+    pub folder_structure: Option<String>,
+}
+
+/// Response for LLM article import
+#[derive(Debug, Serialize)]
+pub struct LLMArticleImportResponse {
+    pub success: bool,
+    pub message: String,
+    pub preview: Option<LLMArticlePreview>,
+    pub post: Option<PostResponse>,
+    pub quality_checks: Option<QualityCheckResults>,
+    pub warnings: Option<Vec<String>>,
+}
+
+/// Preview of processed LLM article
+#[derive(Debug, Serialize)]
+pub struct LLMArticlePreview {
+    pub structured_content: String,
+    pub extracted_title: Option<String>,
+    pub extracted_category: Option<String>,
+    pub extracted_tags: Vec<String>,
+    pub excerpt: String,
+    pub word_count: usize,
+    pub estimated_reading_time: usize,
+}
+
+/// Quality check results
+#[derive(Debug, Serialize)]
+pub struct QualityCheckResults {
+    pub duplicate_check: DuplicateCheckResult,
+    pub content_quality: ContentQualityResult,
+    pub metadata_completeness: MetadataCompletenessResult,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DuplicateCheckResult {
+    pub is_duplicate: bool,
+    pub similar_posts: Vec<SimilarPost>,
+    pub similarity_score: Option<f32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SimilarPost {
+    pub slug: String,
+    pub title: String,
+    pub similarity_score: f32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ContentQualityResult {
+    pub word_count: usize,
+    pub has_headings: bool,
+    pub has_images: bool,
+    pub readability_score: Option<f32>,
+    pub issues: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MetadataCompletenessResult {
+    pub has_title: bool,
+    pub has_category: bool,
+    pub has_tags: bool,
+    pub completeness_score: f32,
+    pub suggestions: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct MarkdownFileImport {
     pub path: String,
@@ -837,6 +933,186 @@ pub async fn import_markdown_api(
         message: format!("Imported {} posts", imported),
         synced_count: Some(imported),
         errors: if errors.is_empty() { None } else { Some(errors) },
+    };
+
+    Ok(Json(response))
+}
+
+/// POST /api/import/llm-article - Import LLM-generated article
+pub async fn import_llm_article_api(
+    State(state): State<ApiState>,
+    Json(request): Json<LLMArticleImportRequest>
+) -> Result<Json<LLMArticleImportResponse>, (StatusCode, Json<ErrorResponse>)> {
+    info!("API: Importing LLM article with format: {:?}", request.format);
+
+    // Validate request
+    if request.content.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("Content cannot be empty"))
+        ));
+    }
+
+    // Initialize LLM processor
+    let llm_processor = crate::services::LLMProcessorService::new(
+        state.database.clone(),
+        state.markdown.clone(),
+    );
+
+    // Process the content
+    let preview = llm_processor.process_llm_content(
+        &request.content,
+        &request.format,
+        request.obsidian_integration.as_ref(),
+        request.auto_structure.unwrap_or(true),
+        request.auto_metadata.unwrap_or(true),
+    ).await.map_err(|e| {
+        error!("Failed to process LLM content: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to process content"))
+        )
+    })?;
+
+    // Determine final metadata (user provided takes precedence)
+    let final_title = request.title
+        .or(preview.extracted_title.clone())
+        .unwrap_or_else(|| "Untitled".to_string());
+    
+    let final_category = request.category.or(preview.extracted_category.clone());
+    let final_tags = request.tags.unwrap_or(preview.extracted_tags.clone());
+    let final_author = request.author.clone();
+
+    // Perform quality checks
+    let quality_checks = llm_processor.quality_check(
+        &preview.structured_content,
+        Some(&final_title),
+        final_category.as_deref(),
+        &final_tags,
+    ).await.map_err(|e| {
+        error!("Failed to perform quality checks: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to perform quality checks"))
+        )
+    })?;
+
+    // Check for warnings
+    let mut warnings = Vec::new();
+    
+    if quality_checks.duplicate_check.is_duplicate {
+        warnings.push("Duplicate content detected".to_string());
+    }
+    
+    if quality_checks.content_quality.word_count < 100 {
+        warnings.push("Content is quite short".to_string());
+    }
+    
+    if !quality_checks.content_quality.has_headings {
+        warnings.push("No headings detected - consider adding structure".to_string());
+    }
+
+    // If this is a preview request (not creating the post yet), return preview
+    if request.published != Some(true) {
+        let response = LLMArticleImportResponse {
+            success: true,
+            message: "Content processed successfully".to_string(),
+            preview: Some(preview),
+            post: None,
+            quality_checks: Some(quality_checks),
+            warnings: if warnings.is_empty() { None } else { Some(warnings) },
+        };
+        return Ok(Json(response));
+    }
+
+    // Create the actual post
+    let slug = generate_slug(&final_title);
+    
+    // Check if slug already exists
+    if let Ok(Some(_)) = state.database.get_post_by_slug(&slug).await {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new("conflict", format!("Post with slug '{}' already exists", slug), 409))
+        ));
+    }
+
+    // Parse markdown content to HTML
+    let parsed = state.markdown.parse_markdown(&preview.structured_content)
+        .map_err(|e| {
+            error!("Failed to parse structured markdown: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to parse markdown"))
+            )
+        })?;
+    let html_content = parsed.html;
+
+    // Prepare the year-based path
+    let now = chrono::Utc::now();
+    let year = now.format("%Y");
+    let filename = format!("{}.md", slug);
+    let dropbox_path = format!("/posts/{}/{}", year, filename);
+
+    // Create post data
+    let create_data = crate::models::CreatePost {
+        slug: slug.clone(),
+        title: final_title.clone(),
+        content: preview.structured_content.clone(),
+        html_content,
+        excerpt: Some(preview.excerpt.clone()),
+        category: final_category,
+        tags: final_tags,
+        published: true, // Since we checked published == Some(true) above
+        featured: false,
+        author: final_author,
+        dropbox_path: dropbox_path.clone(),
+    };
+
+    // Save to database
+    let post = state.database.create_post(create_data).await
+        .map_err(|e| {
+            error!("Database error creating LLM post: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to create post"))
+            )
+        })?;
+
+    // Save to Dropbox using blog storage service
+    let blog_post = crate::services::blog_storage::BlogPost {
+        metadata: crate::services::blog_storage::BlogPostMetadata {
+            title: post.title.clone(),
+            slug: post.slug.clone(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
+            category: post.category.clone(),
+            tags: parse_tags_from_json(&post.tags),
+            published: post.published,
+            author: post.author.clone(),
+            excerpt: post.excerpt.clone(),
+        },
+        content: post.content.clone(),
+        dropbox_path: post.dropbox_path.clone(),
+        file_metadata: None,
+    };
+
+    match state.blog_storage.save_post(&blog_post, false).await {
+        Ok(_) => {
+            info!("LLM post saved to Dropbox: {}", dropbox_path);
+        }
+        Err(e) => {
+            error!("Failed to save LLM post to Dropbox: {}", e);
+            warnings.push("Post saved to database but failed to sync to Dropbox".to_string());
+        }
+    }
+
+    let response = LLMArticleImportResponse {
+        success: true,
+        message: format!("LLM article '{}' imported successfully", final_title),
+        preview: Some(preview),
+        post: Some(crate::models::response::PostResponse::from(post)),
+        quality_checks: Some(quality_checks),
+        warnings: if warnings.is_empty() { None } else { Some(warnings) },
     };
 
     Ok(Json(response))

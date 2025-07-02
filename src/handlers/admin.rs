@@ -266,6 +266,31 @@ pub async fn preview_post(
     Ok(Html(html))
 }
 
+/// GET /admin/llm-import - LLM article import form
+pub async fn llm_import_form(
+    State(state): State<AdminState>
+) -> Result<Html<String>, StatusCode> {
+    debug!("Rendering LLM import form");
+
+    // Create context for the template
+    #[derive(Serialize)]
+    struct LLMImportContext {
+        page_title: String,
+    }
+
+    let context = LLMImportContext {
+        page_title: "LLM Article Import".to_string(),
+    };
+
+    let html = state.templates.render("admin/llm_import.html", &context)
+        .map_err(|e| {
+            error!("Failed to render LLM import template: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    Ok(Html(html))
+}
+
 /// Helper function to parse comma-separated tags
 fn parse_tags(tags_string: Option<String>) -> Vec<String> {
     tags_string
