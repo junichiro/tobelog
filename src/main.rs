@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    middleware::from_fn_with_state,
     response::Json,
-    routing::{get, post},
+    routing::{get, post, put, delete},
     Router,
 };
 use serde_json::{json, Value};
@@ -14,6 +15,7 @@ use tracing_subscriber;
 
 mod config;
 mod handlers;
+mod middleware;
 mod models;
 mod services;
 
@@ -24,9 +26,9 @@ use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownServi
 struct AppState {
     dropbox_client: Arc<DropboxClient>,
     blog_storage: Arc<BlogStorageService>,
-    // database: Arc<DatabaseService>,
-    // markdown: Arc<MarkdownService>,
-    // config: Arc<config::Config>,
+    database: Arc<DatabaseService>,
+    markdown: Arc<MarkdownService>,
+    config: Arc<config::Config>,
 }
 
 #[tokio::main]
@@ -66,7 +68,6 @@ async fn main() -> anyhow::Result<()> {
         (*database).clone(),
     ));
     info!("LLM import service initialized");
-
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -87,11 +88,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let app_state = AppState {
-        dropbox_client: dropbox_client.clone(),
+        dropbox_client,
         blog_storage: blog_storage.clone(),
-        // database: database.clone(),
-        // markdown: markdown.clone(),
-        // config: Arc::new(config.clone()),
+        database: database.clone(),
+        markdown: markdown.clone(),
+        config: Arc::new(config.clone()),
     };
 
     // Create handler states
@@ -104,12 +105,14 @@ async fn main() -> anyhow::Result<()> {
     let api_state = api::ApiState {
         database: (*database).clone(),
         llm_import: (*llm_import).clone(),
-        blog_storage: (*blog_storage).clone(),
+        markdown: (*markdown).clone(),
+        blog_storage: blog_storage,
     };
 
     let admin_state = admin::AdminState {
         database: (*database).clone(),
-        template: (*templates).clone(),
+        markdown: (*markdown).clone(),
+        templates: (*templates).clone(),
         llm_import: (*llm_import).clone(),
     };
     
@@ -120,21 +123,34 @@ async fn main() -> anyhow::Result<()> {
         .with_state(posts_state.clone());
 
     let api_router = Router::new()
-        .route("/api/posts", get(api::list_posts_api).post(api::create_post_api))
-        .route("/api/posts/:slug", get(api::get_post_api).put(api::update_post_api))
-        .route("/api/posts/:slug/save", post(api::save_llm_article_api))
+        // Read operations (no auth required)
+        .route("/api/posts", get(api::list_posts_api))
+        .route("/api/posts/:slug", get(api::get_post_api))
         .route("/api/blog/stats", get(api::blog_stats_api))
         .route("/api/categories", get(api::list_categories_api))
         .route("/api/tags", get(api::list_tags_api))
         .route("/api/search", get(api::search_posts_api))
+        // CRUD operations (auth required)
+        .route("/api/posts", post(api::create_post_api))
+        .route("/api/posts/:slug", put(api::update_post_api))
+        .route("/api/posts/:slug", delete(api::delete_post_api))
+        // LLM import operations (auth required)
         .route("/api/import/llm-article", post(api::import_llm_article_api))
         .route("/api/import/batch", post(api::batch_import_api))
-        .with_state(api_state);
+        .route("/api/posts/:slug/save", post(api::save_llm_article_api))
+        // Sync operations (auth required)
+        .route("/api/sync/dropbox", post(api::sync_dropbox_api))
+        .route("/api/import/markdown", post(api::import_markdown_api))
+        .with_state(api_state)
+        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
 
     let admin_router = Router::new()
-        .route("/admin", get(admin::admin_dashboard))
+        .route("/admin", get(admin::dashboard))
+        .route("/admin/posts", get(admin::posts_list))
+        .route("/admin/new", get(admin::new_post_form))
+        .route("/admin/edit/:slug", get(admin::edit_post_form))
+        // LLM import admin routes
         .route("/admin/import", get(admin::admin_import_page).post(admin::admin_process_import))
-        .route("/admin/posts", get(admin::admin_posts_page))
         .route("/admin/posts/:slug/edit", get(admin::admin_edit_post_page))
         .with_state(admin_state);
 
