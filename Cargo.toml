@@ -26,4 +26,5 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 serde_yaml = "0.9"
 html-escape = "0.2"
+regex = "1.0"
 

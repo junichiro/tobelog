@@ -93,6 +93,73 @@ pub struct TagStat {
     pub count: i64,
 }
 
+/// LLM記事インポートリクエスト
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LLMArticleImportRequest {
+    pub content: String,
+    pub suggested_title: Option<String>,
+    pub category_hint: Option<String>,
+    pub tags_hint: Option<Vec<String>>,
+    pub source: String, // "chatgpt", "claude", "custom"
+    pub published: Option<bool>,
+    pub featured: Option<bool>,
+}
+
+/// LLM記事インポートレスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LLMArticleImportResponse {
+    pub slug: String,
+    pub suggested_metadata: LLMSuggestedMetadata,
+    pub formatted_content: String,
+    pub html_content: String,
+    pub preview_url: String,
+    pub dropbox_path: String,
+}
+
+/// LLM記事の提案メタデータ
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LLMSuggestedMetadata {
+    pub title: String,
+    pub excerpt: Option<String>,
+    pub category: Option<String>,
+    pub tags: Vec<String>,
+    pub author: Option<String>,
+    pub source: String,
+}
+
+/// バッチインポート用のリクエスト
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchImportRequest {
+    pub articles: Vec<LLMArticleImportRequest>,
+    pub default_category: Option<String>,
+    pub default_published: Option<bool>,
+}
+
+/// バッチインポート用のレスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchImportResponse {
+    pub successful: Vec<LLMArticleImportResponse>,
+    pub failed: Vec<ImportError>,
+    pub summary: ImportSummary,
+}
+
+/// インポートエラー
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportError {
+    pub content_preview: String, // 最初の100文字
+    pub error_message: String,
+    pub source: String,
+}
+
+/// インポート結果のサマリー
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImportSummary {
+    pub total_attempted: usize,
+    pub successful: usize,
+    pub failed: usize,
+    pub duplicates_detected: usize,
+}
+
 impl Post {
     /// Create a new post with generated UUID and timestamps
     #[allow(dead_code)]

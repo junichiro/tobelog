@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}管理ダッシュボード - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">管理ダッシュボード</h1>
+        <div class="space-x-4">
+            <a href="/admin/import" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                LLM記事インポート
+            </a>
+            <a href="/admin/posts" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                記事管理
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="text-blue-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">総記事数</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ total_posts }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="text-green-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">公開記事</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ published_posts }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="text-yellow-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M9 11l3 3L20 4M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">下書き</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ draft_posts }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="text-purple-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">今月の記事</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ recent_posts | length }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Posts -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">最近の記事</h2>
+        </div>
+        <div class="p-6">
+            {% if recent_posts %}
+            <div class="space-y-4">
+                {% for post in recent_posts %}
+                <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div class="flex-1">
+                        <h3 class="text-sm font-medium text-gray-900">
+                            <a href="{{ post.url_path }}" class="hover:text-blue-600">{{ post.title }}</a>
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-1">
+                            {{ post.created_at | date(format="%Y年%m月%d日") }}
+                            {% if post.category %}
+                            | {{ post.category }}
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        {% if post.published %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            公開
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            下書き
+                        </span>
+                        {% endif %}
+                        <a href="/admin/posts/{{ post.slug }}/edit" class="text-blue-600 hover:text-blue-800 text-sm">
+                            編集
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-8">記事がありません</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">LLM記事インポート</h3>
+            <p class="text-gray-600 mb-4">ChatGPTやClaudeで生成した記事を自動で構造化してインポートします。</p>
+            <a href="/admin/import" class="block text-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                インポート開始
+            </a>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">記事管理</h3>
+            <p class="text-gray-600 mb-4">既存の記事を編集、削除、公開状態を変更できます。</p>
+            <a href="/admin/posts" class="block text-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                記事一覧
+            </a>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">統計とレポート</h3>
+            <p class="text-gray-600 mb-4">ブログの統計情報とパフォーマンスレポートを表示します。</p>
+            <a href="/api/blog/stats" target="_blank" class="block text-center bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg">
+                統計を見る
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

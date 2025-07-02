@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::Json,
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use serde_json::{json, Value};
@@ -17,8 +17,8 @@ mod handlers;
 mod models;
 mod services;
 
-use handlers::{posts, api};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService};
+use handlers::{posts, api, admin};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService};
 
 #[derive(Clone)]
 struct AppState {
@@ -60,6 +60,13 @@ async fn main() -> anyhow::Result<()> {
     let templates = Arc::new(TemplateService::new()?);
     info!("Template service initialized");
 
+    // Initialize LLM import service
+    let llm_import = Arc::new(LLMImportService::new(
+        (*markdown).clone(),
+        (*database).clone(),
+    ));
+    info!("LLM import service initialized");
+
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -80,8 +87,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let app_state = AppState {
-        dropbox_client,
-        blog_storage,
+        dropbox_client: dropbox_client.clone(),
+        blog_storage: blog_storage.clone(),
         // database: database.clone(),
         // markdown: markdown.clone(),
         // config: Arc::new(config.clone()),
@@ -96,6 +103,14 @@ async fn main() -> anyhow::Result<()> {
 
     let api_state = api::ApiState {
         database: (*database).clone(),
+        llm_import: (*llm_import).clone(),
+        blog_storage: (*blog_storage).clone(),
+    };
+
+    let admin_state = admin::AdminState {
+        database: (*database).clone(),
+        template: (*templates).clone(),
+        llm_import: (*llm_import).clone(),
     };
     
     // Create separate routers for each state type
@@ -105,13 +120,23 @@ async fn main() -> anyhow::Result<()> {
         .with_state(posts_state.clone());
 
     let api_router = Router::new()
-        .route("/api/posts", get(api::list_posts_api))
-        .route("/api/posts/:slug", get(api::get_post_api))
+        .route("/api/posts", get(api::list_posts_api).post(api::create_post_api))
+        .route("/api/posts/:slug", get(api::get_post_api).put(api::update_post_api))
+        .route("/api/posts/:slug/save", post(api::save_llm_article_api))
         .route("/api/blog/stats", get(api::blog_stats_api))
         .route("/api/categories", get(api::list_categories_api))
         .route("/api/tags", get(api::list_tags_api))
         .route("/api/search", get(api::search_posts_api))
+        .route("/api/import/llm-article", post(api::import_llm_article_api))
+        .route("/api/import/batch", post(api::batch_import_api))
         .with_state(api_state);
+
+    let admin_router = Router::new()
+        .route("/admin", get(admin::admin_dashboard))
+        .route("/admin/import", get(admin::admin_import_page).post(admin::admin_process_import))
+        .route("/admin/posts", get(admin::admin_posts_page))
+        .route("/admin/posts/:slug/edit", get(admin::admin_edit_post_page))
+        .with_state(admin_state);
 
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
@@ -124,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(web_pages_router)
         .merge(api_router)
+        .merge(admin_router)
         .merge(legacy_router)
         // Static file serving
         .nest_service("/static", ServeDir::new("static"))
