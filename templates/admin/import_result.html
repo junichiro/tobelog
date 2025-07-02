@@ -50,11 +50,11 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">提案カテゴリ</label>
-                    <p class="mt-1 text-gray-900">{{ suggested_category | default("なし") }}</p>
+                    <p class="mt-1 text-gray-900">{{ suggested_category | default(value="なし") }}</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">提案タグ</label>
-                    <p class="mt-1 text-gray-900">{{ suggested_tags | default("なし") }}</p>
+                    <p class="mt-1 text-gray-900">{{ suggested_tags | default(value="なし") }}</p>
                 </div>
             </div>
 

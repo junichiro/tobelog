@@ -20,7 +20,7 @@ mod models;
 mod services;
 
 use handlers::{posts, api, admin};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService};
 
 #[derive(Clone)]
 struct AppState {
@@ -68,6 +68,15 @@ async fn main() -> anyhow::Result<()> {
         (*database).clone(),
     ));
     info!("LLM import service initialized");
+
+    // Initialize media service
+    let media = Arc::new(MediaService::new(
+        dropbox_client.clone(),
+        blog_storage.clone(),
+        (*database).clone(),
+    ));
+    info!("Media service initialized");
+
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -107,6 +116,7 @@ async fn main() -> anyhow::Result<()> {
         llm_import: (*llm_import).clone(),
         markdown: (*markdown).clone(),
         blog_storage: blog_storage,
+        media: (*media).clone(),
     };
 
     let admin_state = admin::AdminState {
@@ -138,10 +148,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/import/llm-article", post(api::import_llm_article_api))
         .route("/api/import/batch", post(api::batch_import_api))
         .route("/api/posts/:slug/save", post(api::save_llm_article_api))
+        // Media operations (auth required)
+        .route("/api/media/upload", post(api::upload_media_api))
+        .route("/api/media", get(api::list_media_api))
+        .route("/api/media/:id", delete(api::delete_media_api))
         // Sync operations (auth required)
         .route("/api/sync/dropbox", post(api::sync_dropbox_api))
         .route("/api/import/markdown", post(api::import_markdown_api))
-        .with_state(api_state)
+        .with_state(api_state.clone())
         .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
 
     let admin_router = Router::new()
@@ -162,11 +176,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/blog/drafts", get(list_drafts_handler))
         .with_state(app_state);
 
+    let media_router = Router::new()
+        .route("/media/*path", get(api::serve_media_file))
+        .with_state(api_state);
+
     let app = Router::new()
         .merge(web_pages_router)
         .merge(api_router)
         .merge(admin_router)
         .merge(legacy_router)
+        .merge(media_router)
         // Static file serving
         .nest_service("/static", ServeDir::new("static"))
         // Middleware
