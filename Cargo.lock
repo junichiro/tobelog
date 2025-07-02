@@ -2453,6 +2453,7 @@ dependencies = [
  "dotenv",
  "html-escape",
  "pulldown-cmark",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

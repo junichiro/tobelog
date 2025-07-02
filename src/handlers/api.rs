@@ -8,9 +8,10 @@ use tracing::{debug, error, info, warn};
 use crate::models::{
     response::{PostListResponse, PostResponse, PostSummary, ErrorResponse, 
               BlogStatsResponse, CategoryInfo, TagInfo},
-    PostFilters, CreatePost, UpdatePost
+    PostFilters, CreatePost, UpdatePost, LLMArticleImportRequest, LLMArticleImportResponse,
+    BatchImportRequest, BatchImportResponse
 };
-use crate::services::{DatabaseService, MarkdownService, BlogStorageService};
+use crate::services::{DatabaseService, MarkdownService, BlogStorageService, LLMImportService};
 use std::sync::Arc;
 
 /// Query parameters for post listing API
@@ -30,6 +31,7 @@ pub struct ApiState {
     pub database: DatabaseService,
     pub markdown: MarkdownService,
     pub blog_storage: Arc<BlogStorageService>,
+    pub llm_import: LLMImportService,
 }
 
 /// GET /api/posts - List posts with pagination and filtering
@@ -871,4 +873,135 @@ fn extract_title_from_markdown(content: &str) -> String {
         .find(|line| line.starts_with("# "))
         .map(|line| line.trim_start_matches("# ").to_string())
         .unwrap_or_else(|| "Untitled".to_string())
+}
+
+/// POST /api/import/llm-article - Import a single LLM-generated article
+pub async fn import_llm_article_api(
+    State(state): State<ApiState>,
+    Json(request): Json<LLMArticleImportRequest>,
+) -> Result<Json<LLMArticleImportResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Importing LLM article from source: {}", request.source);
+
+    if request.content.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("Content cannot be empty"))
+        ));
+    }
+
+    let import_response = state.llm_import.process_single_article(request.clone()).await
+        .map_err(|e| {
+            error!("LLM import error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to process article"))
+            )
+        })?;
+
+    // Optionally save to database if requested
+    if request.published.unwrap_or(false) {
+        if let Err(e) = state.llm_import.save_imported_article(
+            import_response.clone(),
+            true
+        ).await {
+            error!("Failed to save imported article: {}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to save article"))
+            ));
+        }
+    }
+
+    Ok(Json(import_response))
+}
+
+/// POST /api/import/batch - Import multiple articles in batch
+pub async fn batch_import_api(
+    State(state): State<ApiState>,
+    Json(request): Json<BatchImportRequest>,
+) -> Result<Json<BatchImportResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Batch importing {} articles", request.articles.len());
+
+    if request.articles.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("No articles provided for import"))
+        ));
+    }
+
+    if request.articles.len() > 50 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("Too many articles (max 50 per batch)"))
+        ));
+    }
+
+    let batch_response = state.llm_import.process_batch_import(request).await;
+
+    Ok(Json(batch_response))
+}
+
+/// POST /api/posts/{slug}/save - Save a processed LLM article to database
+pub async fn save_llm_article_api(
+    Path(slug): Path<String>,
+    State(state): State<ApiState>,
+    Json(save_request): Json<SaveLLMArticleRequest>,
+) -> Result<Json<PostResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Saving LLM article with slug: {}", slug);
+
+    // Check if article already exists
+    if state.database.get_post_by_slug(&slug).await
+        .map_err(|e| {
+            error!("Database error checking slug {}: {}", slug, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Database error"))
+            )
+        })?.is_some() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::bad_request(format!("Article with slug '{}' already exists", slug)))
+        ));
+    }
+
+    let create_post = CreatePost {
+        slug: slug.clone(),
+        title: save_request.title,
+        content: save_request.content,
+        html_content: save_request.html_content,
+        excerpt: save_request.excerpt,
+        category: save_request.category,
+        tags: save_request.tags,
+        published: save_request.published,
+        featured: save_request.featured,
+        author: save_request.author,
+        dropbox_path: save_request.dropbox_path,
+    };
+
+    let post = state.database.create_post(create_post).await
+        .map_err(|e| {
+            error!("Database error creating post: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to save article"))
+            )
+        })?;
+
+    let response = PostResponse::from(post);
+    Ok(Json(response))
+}
+
+/// Request for saving LLM article
+#[derive(Debug, Deserialize)]
+pub struct SaveLLMArticleRequest {
+    pub title: String,
+    pub content: String,
+    pub html_content: String,
+    pub excerpt: Option<String>,
+    pub category: Option<String>,
+    pub tags: Vec<String>,
+    pub published: bool,
+    pub featured: bool,
+    pub author: Option<String>,
+    pub dropbox_path: String,
 }

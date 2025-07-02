@@ -20,7 +20,7 @@ mod models;
 mod services;
 
 use handlers::{posts, api, admin};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService};
 
 #[derive(Clone)]
 struct AppState {
@@ -61,6 +61,13 @@ async fn main() -> anyhow::Result<()> {
     // Initialize template service
     let templates = Arc::new(TemplateService::new()?);
     info!("Template service initialized");
+
+    // Initialize LLM import service
+    let llm_import = Arc::new(LLMImportService::new(
+        (*markdown).clone(),
+        (*database).clone(),
+    ));
+    info!("LLM import service initialized");
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -97,14 +104,16 @@ async fn main() -> anyhow::Result<()> {
 
     let api_state = api::ApiState {
         database: (*database).clone(),
+        llm_import: (*llm_import).clone(),
         markdown: (*markdown).clone(),
-        blog_storage: blog_storage.clone(),
+        blog_storage: blog_storage,
     };
 
     let admin_state = admin::AdminState {
         database: (*database).clone(),
         markdown: (*markdown).clone(),
         templates: (*templates).clone(),
+        llm_import: (*llm_import).clone(),
     };
     
     // Create separate routers for each state type
@@ -125,6 +134,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/posts", post(api::create_post_api))
         .route("/api/posts/:slug", put(api::update_post_api))
         .route("/api/posts/:slug", delete(api::delete_post_api))
+        // LLM import operations (auth required)
+        .route("/api/import/llm-article", post(api::import_llm_article_api))
+        .route("/api/import/batch", post(api::batch_import_api))
+        .route("/api/posts/:slug/save", post(api::save_llm_article_api))
         // Sync operations (auth required)
         .route("/api/sync/dropbox", post(api::sync_dropbox_api))
         .route("/api/import/markdown", post(api::import_markdown_api))
@@ -136,6 +149,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/posts", get(admin::posts_list))
         .route("/admin/new", get(admin::new_post_form))
         .route("/admin/edit/:slug", get(admin::edit_post_form))
+        // LLM import admin routes
+        .route("/admin/import", get(admin::admin_import_page).post(admin::admin_process_import))
+        .route("/admin/posts/:slug/edit", get(admin::admin_edit_post_page))
         .with_state(admin_state);
 
     let legacy_router = Router::new()
