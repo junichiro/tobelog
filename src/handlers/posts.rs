@@ -152,4 +152,3 @@ pub async fn post_page(
 
     Ok(Html(html))
 }
-

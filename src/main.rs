@@ -24,9 +24,9 @@ use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownServi
 struct AppState {
     dropbox_client: Arc<DropboxClient>,
     blog_storage: Arc<BlogStorageService>,
-    // database: Arc<DatabaseService>,
-    // markdown: Arc<MarkdownService>,
-    // config: Arc<config::Config>,
+    database: Arc<DatabaseService>,
+    markdown: Arc<MarkdownService>,
+    config: Arc<config::Config>,
 }
 
 #[tokio::main]
@@ -59,7 +59,6 @@ async fn main() -> anyhow::Result<()> {
     // Initialize template service
     let templates = Arc::new(TemplateService::new()?);
     info!("Template service initialized");
-
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -81,10 +80,10 @@ async fn main() -> anyhow::Result<()> {
 
     let app_state = AppState {
         dropbox_client,
-        blog_storage,
-        // database: database.clone(),
-        // markdown: markdown.clone(),
-        // config: Arc::new(config.clone()),
+        blog_storage: blog_storage.clone(),
+        database: database.clone(),
+        markdown: markdown.clone(),
+        config: Arc::new(config.clone()),
     };
 
     // Create handler states
@@ -96,6 +95,8 @@ async fn main() -> anyhow::Result<()> {
 
     let api_state = api::ApiState {
         database: (*database).clone(),
+        markdown: (*markdown).clone(),
+        blog_storage: blog_storage.clone(),
     };
     
     // Create separate routers for each state type
