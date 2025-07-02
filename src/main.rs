@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    middleware::from_fn_with_state,
     response::Json,
-    routing::get,
+    routing::{get, post, put, delete},
     Router,
 };
 use serde_json::{json, Value};
@@ -14,10 +15,11 @@ use tracing_subscriber;
 
 mod config;
 mod handlers;
+mod middleware;
 mod models;
 mod services;
 
-use handlers::{posts, api};
+use handlers::{posts, api, admin};
 use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService};
 
 #[derive(Clone)]
@@ -98,6 +100,12 @@ async fn main() -> anyhow::Result<()> {
         markdown: (*markdown).clone(),
         blog_storage: blog_storage.clone(),
     };
+
+    let admin_state = admin::AdminState {
+        database: (*database).clone(),
+        markdown: (*markdown).clone(),
+        templates: (*templates).clone(),
+    };
     
     // Create separate routers for each state type
     let web_pages_router = Router::new()
@@ -106,13 +114,29 @@ async fn main() -> anyhow::Result<()> {
         .with_state(posts_state.clone());
 
     let api_router = Router::new()
+        // Read operations (no auth required)
         .route("/api/posts", get(api::list_posts_api))
         .route("/api/posts/:slug", get(api::get_post_api))
         .route("/api/blog/stats", get(api::blog_stats_api))
         .route("/api/categories", get(api::list_categories_api))
         .route("/api/tags", get(api::list_tags_api))
         .route("/api/search", get(api::search_posts_api))
-        .with_state(api_state);
+        // CRUD operations (auth required)
+        .route("/api/posts", post(api::create_post_api))
+        .route("/api/posts/:slug", put(api::update_post_api))
+        .route("/api/posts/:slug", delete(api::delete_post_api))
+        // Sync operations (auth required)
+        .route("/api/sync/dropbox", post(api::sync_dropbox_api))
+        .route("/api/import/markdown", post(api::import_markdown_api))
+        .with_state(api_state)
+        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+
+    let admin_router = Router::new()
+        .route("/admin", get(admin::dashboard))
+        .route("/admin/posts", get(admin::posts_list))
+        .route("/admin/new", get(admin::new_post_form))
+        .route("/admin/edit/:slug", get(admin::edit_post_form))
+        .with_state(admin_state);
 
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
@@ -125,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(web_pages_router)
         .merge(api_router)
+        .merge(admin_router)
         .merge(legacy_router)
         // Static file serving
         .nest_service("/static", ServeDir::new("static"))
