@@ -4,7 +4,7 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use crate::models::{
     response::{PostListResponse, PostResponse, PostSummary, ErrorResponse, 
               BlogStatsResponse, CategoryInfo, TagInfo},
@@ -444,17 +444,34 @@ pub async fn create_post_api(
             )
         })?;
 
-    // TODO: Save to Dropbox - implement when blog storage service is ready
-    // match state.blog_storage.save_post(&post, false).await {
-    //     Ok(_) => {
-    //         info!("Post saved to Dropbox: {}", dropbox_path);
-    //     }
-    //     Err(e) => {
-    //         error!("Failed to save post to Dropbox: {}", e);
-    //         // Don't fail the request, but log the error
-    //         // TODO: Consider a background job to retry Dropbox sync
-    //     }
-    // }
+    // Save to Dropbox using blog storage service
+    let blog_post = crate::services::blog_storage::BlogPost {
+        metadata: crate::services::blog_storage::BlogPostMetadata {
+            title: post.title.clone(),
+            slug: post.slug.clone(),
+            created_at: post.created_at,
+            updated_at: post.updated_at,
+            category: post.category.clone(),
+            tags: parse_tags_from_json(&post.tags),
+            published: post.published,
+            author: post.author.clone(),
+            excerpt: post.excerpt.clone(),
+        },
+        content: post.content.clone(),
+        dropbox_path: post.dropbox_path.clone(),
+        file_metadata: None,
+    };
+
+    match state.blog_storage.save_post(&blog_post, false).await {
+        Ok(_) => {
+            info!("Post saved to Dropbox: {}", dropbox_path);
+        }
+        Err(e) => {
+            error!("Failed to save post to Dropbox: {}", e);
+            // Don't fail the request, but log the error
+            // The post is already saved in the database
+        }
+    }
 
     let response = PostOperationResponse {
         success: true,
@@ -533,18 +550,35 @@ pub async fn update_post_api(
             )
         })?;
 
-    // TODO: Update in Dropbox if content changed - implement when blog storage service is ready
-    // if let Some(ref content) = request.content {
-    //     match state.blog_storage.save_post(&post, false).await {
-    //         Ok(_) => {
-    //             info!("Post updated in Dropbox: {}", existing_post.dropbox_path);
-    //         }
-    //         Err(e) => {
-    //             error!("Failed to update post in Dropbox: {}", e);
-    //             // Don't fail the request, but log the error
-    //         }
-    //     }
-    // }
+    // Update in Dropbox if content changed
+    if let Some(ref updated_post) = updated_post {
+        let blog_post = crate::services::blog_storage::BlogPost {
+            metadata: crate::services::blog_storage::BlogPostMetadata {
+                title: updated_post.title.clone(),
+                slug: updated_post.slug.clone(),
+                created_at: updated_post.created_at,
+                updated_at: updated_post.updated_at,
+                category: updated_post.category.clone(),
+                tags: parse_tags_from_json(&updated_post.tags),
+                published: updated_post.published,
+                author: updated_post.author.clone(),
+                excerpt: updated_post.excerpt.clone(),
+            },
+            content: updated_post.content.clone(),
+            dropbox_path: updated_post.dropbox_path.clone(),
+            file_metadata: None,
+        };
+
+        match state.blog_storage.save_post(&blog_post, false).await {
+            Ok(_) => {
+                info!("Post updated in Dropbox: {}", existing_post.dropbox_path);
+            }
+            Err(e) => {
+                error!("Failed to update post in Dropbox: {}", e);
+                // Don't fail the request, but log the error
+            }
+        }
+    }
 
     let response = PostOperationResponse {
         success: true,
@@ -593,7 +627,19 @@ pub async fn delete_post_api(
             )
         })?;
 
-    // TODO: Optionally delete from Dropbox or move to archive folder
+    // Delete from Dropbox (or move to archive folder)
+    match state.blog_storage.delete_post(&slug).await {
+        Ok(true) => {
+            info!("Post deleted from Dropbox: {}", existing_post.dropbox_path);
+        }
+        Ok(false) => {
+            warn!("Post not found in Dropbox: {}", slug);
+        }
+        Err(e) => {
+            error!("Failed to delete post from Dropbox: {}", e);
+            // Don't fail the request, but log the error
+        }
+    }
 
     let response = PostOperationResponse {
         success: true,
@@ -607,23 +653,90 @@ pub async fn delete_post_api(
 
 /// POST /api/sync/dropbox - Sync posts from Dropbox
 pub async fn sync_dropbox_api(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
     Json(request): Json<SyncDropboxRequest>
 ) -> Result<Json<SyncResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!("API: Syncing posts from Dropbox (force: {:?})", request.force);
 
-    // TODO: Implement Dropbox sync logic
-    // This would:
-    // 1. List all markdown files in Dropbox
-    // 2. Compare with database entries
-    // 3. Import new files
-    // 4. Update modified files (if force=true or based on timestamps)
+    let mut synced = 0;
+    let mut errors = Vec::new();
+
+    // Get all published posts from Dropbox
+    match state.blog_storage.list_published_posts().await {
+        Ok(dropbox_posts) => {
+            for dropbox_post in dropbox_posts {
+                // Check if post exists in database
+                match state.database.get_post_by_slug(&dropbox_post.metadata.slug).await {
+                    Ok(Some(db_post)) => {
+                        // Post exists, check if we should update
+                        if request.force.unwrap_or(false) || dropbox_post.metadata.updated_at > db_post.updated_at {
+                            // Update existing post
+                            let update_data = crate::models::UpdatePost {
+                                title: Some(dropbox_post.metadata.title.clone()),
+                                content: Some(dropbox_post.content.clone()),
+                                html_content: None, // Will be generated from content
+                                excerpt: dropbox_post.metadata.excerpt.clone(),
+                                category: dropbox_post.metadata.category.clone(),
+                                tags: Some(dropbox_post.metadata.tags.clone()),
+                                published: Some(dropbox_post.metadata.published),
+                                featured: None,
+                                author: dropbox_post.metadata.author.clone(),
+                                dropbox_path: Some(dropbox_post.dropbox_path.clone()),
+                            };
+
+                            match state.database.update_post(db_post.id, update_data).await {
+                                Ok(_) => {
+                                    synced += 1;
+                                    info!("Updated existing post: {}", dropbox_post.metadata.slug);
+                                }
+                                Err(e) => {
+                                    errors.push(format!("Failed to update post '{}': {}", dropbox_post.metadata.slug, e));
+                                }
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        // New post, create it
+                        let create_data = crate::models::CreatePost {
+                            slug: dropbox_post.metadata.slug.clone(),
+                            title: dropbox_post.metadata.title.clone(),
+                            content: dropbox_post.content.clone(),
+                            html_content: String::new(), // Will be generated
+                            excerpt: dropbox_post.metadata.excerpt,
+                            category: dropbox_post.metadata.category,
+                            tags: dropbox_post.metadata.tags,
+                            published: dropbox_post.metadata.published,
+                            featured: false,
+                            author: dropbox_post.metadata.author,
+                            dropbox_path: dropbox_post.dropbox_path,
+                        };
+
+                        match state.database.create_post(create_data).await {
+                            Ok(_) => {
+                                synced += 1;
+                                info!("Created new post: {}", dropbox_post.metadata.slug);
+                            }
+                            Err(e) => {
+                                errors.push(format!("Failed to create post '{}': {}", dropbox_post.metadata.slug, e));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        errors.push(format!("Database error checking post '{}': {}", dropbox_post.metadata.slug, e));
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            errors.push(format!("Failed to list Dropbox posts: {}", e));
+        }
+    }
 
     let response = SyncResponse {
-        success: false,
-        message: "Dropbox sync not yet implemented".to_string(),
-        synced_count: None,
-        errors: None,
+        success: errors.is_empty(),
+        message: format!("Synced {} posts from Dropbox", synced),
+        synced_count: Some(synced),
+        errors: if errors.is_empty() { None } else { Some(errors) },
     };
 
     Ok(Json(response))
@@ -681,9 +794,30 @@ pub async fn import_markdown_api(
         };
 
         match state.database.create_post(create_data).await {
-            Ok(_) => {
+            Ok(post) => {
                 imported += 1;
-                // TODO: Save to Dropbox - implement when blog storage service is ready
+                
+                // Save to Dropbox as well
+                let blog_post = crate::services::blog_storage::BlogPost {
+                    metadata: crate::services::blog_storage::BlogPostMetadata {
+                        title: post.title.clone(),
+                        slug: post.slug.clone(),
+                        created_at: post.created_at,
+                        updated_at: post.updated_at,
+                        category: post.category.clone(),
+                        tags: parse_tags_from_json(&post.tags),
+                        published: post.published,
+                        author: post.author.clone(),
+                        excerpt: post.excerpt.clone(),
+                    },
+                    content: post.content.clone(),
+                    dropbox_path: post.dropbox_path.clone(),
+                    file_metadata: None,
+                };
+
+                if let Err(e) = state.blog_storage.save_post(&blog_post, false).await {
+                    errors.push(format!("Failed to save '{}' to Dropbox: {}", slug, e));
+                }
             }
             Err(e) => {
                 errors.push(format!("Failed to import '{}': {}", slug, e));
@@ -702,6 +836,10 @@ pub async fn import_markdown_api(
 }
 
 // Helper functions
+
+fn parse_tags_from_json(tags_json: &str) -> Vec<String> {
+    serde_json::from_str(tags_json).unwrap_or_default()
+}
 
 fn generate_slug(title: &str) -> String {
     title.to_lowercase()
