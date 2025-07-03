@@ -24,12 +24,7 @@ services:
     networks:
       - tobelog-production-network
     # Maximum security for production
-    security_opt:
-      - no-new-privileges:true
     read_only: true  # Read-only filesystem for security
-    user: "1001:1001"
-    cap_drop:
-      - ALL
     # Production health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
