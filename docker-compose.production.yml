@@ -1,0 +1,64 @@
+version: '3.8'
+
+# Production environment override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.production.yml up
+
+services:
+  tobelog:
+    container_name: tobelog-production
+    # Don't expose port directly in production - use reverse proxy
+    # ports:
+    #   - "3000:3000"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=3000
+      - DATABASE_URL=sqlite:///home/app/data/blog.db
+      - RUST_LOG=warn  # Less verbose logging in production
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN}
+      - API_KEY=${API_KEY:?PRODUCTION_API_KEY is not set. Please set it in your .env file or environment.}
+    volumes:
+      # Production database with backup considerations
+      - blog_data_production:/home/app/data
+      # Production config
+      - ./config:/home/app/config:ro
+    networks:
+      - tobelog-production-network
+    # Maximum security for production
+    read_only: true  # Read-only filesystem for security
+    # Production health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    # Production logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  tobelog-production-network:
+    driver: bridge
+    name: tobelog-production-network
+
+volumes:
+  blog_data_production:
+    driver: local
+    name: tobelog-blog-data-production

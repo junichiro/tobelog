@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Development environment override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  tobelog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for development with more tools
+    container_name: tobelog-dev
+    ports:
+      - "3000:3000"
+      - "9229:9229"  # Debug port if needed
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=3000
+      - DATABASE_URL=sqlite:///home/app/data/blog.db
+      - RUST_LOG=debug  # More verbose logging for development
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN}
+      - API_KEY=${API_KEY:-dev-api-key}
+    volumes:
+      # Mount source code for hot reloading (if using cargo-watch)
+      - ./src:/home/app/src:ro
+      - ./templates:/home/app/templates:ro
+      - ./static:/home/app/static:ro
+      - ./migrations:/home/app/migrations:ro
+      # Development database (separate from production)
+      - blog_data_dev:/home/app/data
+      # Development config
+      - ./config:/home/app/config:ro
+    networks:
+      - tobelog-dev-network
+    # Less restrictive security for development
+    security_opt: []
+    read_only: false
+    user: "1001:1001"
+    cap_drop: []
+    cap_add: []
+    # Override healthcheck for faster feedback
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  tobelog-dev-network:
+    driver: bridge
+    name: tobelog-dev-network
+
+volumes:
+  blog_data_dev:
+    driver: local
+    name: tobelog-blog-data-dev

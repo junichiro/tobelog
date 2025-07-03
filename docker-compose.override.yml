@@ -1,0 +1,15 @@
+# Default override for local development
+# This file is automatically loaded by docker-compose
+# For other environments, use explicit compose files:
+# - Development: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# - Staging: docker-compose -f docker-compose.yml -f docker-compose.staging.yml up
+# - Production: docker-compose -f docker-compose.yml -f docker-compose.production.yml up
+
+version: '3.8'
+
+services:
+  tobelog:
+    # Default to development settings for local docker-compose up
+    extends:
+      file: docker-compose.dev.yml
+      service: tobelog
