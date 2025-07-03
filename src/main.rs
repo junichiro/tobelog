@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    middleware::from_fn_with_state,
+    middleware::{from_fn_with_state, from_fn},
     response::Json,
     routing::{get, post, put, delete},
     Router,
@@ -19,8 +19,8 @@ mod middleware;
 mod models;
 mod services;
 
-use handlers::{posts, api, admin, version, theme};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService, VersionService, ThemeService};
+use handlers::{posts, api, admin, version, theme, performance};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService, VersionService, ThemeService, CacheService};
 
 #[derive(Clone)]
 struct AppState {
@@ -29,6 +29,7 @@ struct AppState {
     database: Arc<DatabaseService>,
     markdown: Arc<MarkdownService>,
     config: Arc<config::Config>,
+    cache: Arc<CacheService>,
 }
 
 #[tokio::main]
@@ -91,6 +92,10 @@ async fn main() -> anyhow::Result<()> {
     ));
     info!("Theme service initialized");
 
+    // Initialize cache service
+    let cache_service = Arc::new(CacheService::new());
+    info!("Cache service initialized");
+
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -116,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
         database: database.clone(),
         markdown: markdown.clone(),
         config: Arc::new(config.clone()),
+        cache: cache_service.clone(),
     };
 
     // Create handler states
@@ -223,6 +229,19 @@ async fn main() -> anyhow::Result<()> {
         .with_state(theme_state)
         .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
 
+    // Performance monitoring router
+    let performance_state = performance::PerformanceState {
+        cache: (*cache_service).clone(),
+    };
+
+    let performance_router = Router::new()
+        // Performance monitoring endpoints (auth required)
+        .route("/api/performance/metrics", get(performance::get_performance_metrics))
+        .route("/api/performance/cache/clear", post(performance::clear_cache))
+        .route("/api/performance/health", get(performance::performance_health_check))
+        .with_state(performance_state)
+        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
         .route("/api/dropbox/status", get(dropbox_status_handler))
@@ -241,11 +260,16 @@ async fn main() -> anyhow::Result<()> {
         .merge(admin_router)
         .merge(version_router)
         .merge(theme_router)
+        .merge(performance_router)
         .merge(legacy_router)
         .merge(media_router)
         // Static file serving
         .nest_service("/static", ServeDir::new("static"))
-        // Middleware
+        // Performance and caching middleware
+        // TODO: Re-enable performance tracking middleware after fixing signature
+        // .layer(from_fn_with_state(cache_service.clone(), crate::middleware::performance::performance_tracking_middleware))
+        .layer(from_fn(crate::middleware::performance::cache_headers_middleware))
+        // CORS middleware
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive())); // TODO: Configure restrictive CORS policy for production
 
     let addr = format!("{}:{}", config.host, config.port);

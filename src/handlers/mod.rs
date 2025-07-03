@@ -5,6 +5,7 @@ pub mod api;
 pub mod admin;
 pub mod version;
 pub mod theme;
+pub mod performance;
 
 // Re-export specific items as needed
 // pub use posts::*;

@@ -88,6 +88,13 @@ impl DatabaseService {
             .await
             .context("Failed to run migration 005")?;
 
+        // Migration 6: Performance optimizations
+        let migration_6 = include_str!("../../migrations/006_performance_optimizations.sql");
+        sqlx::query(migration_6)
+            .execute(&self.pool)
+            .await
+            .context("Failed to run migration 006")?;
+
         info!("Database migrations completed successfully");
         Ok(())
     }
