@@ -198,15 +198,10 @@ impl LLMProcessorService {
         let wikilink_re = Regex::new(r"\[\[([^\]]+)\]\]")?;
         let converted = wikilink_re.replace_all(content, |caps: &regex::Captures| {
             let link_text = &caps[1];
-            if link_text.contains('|') {
-                let parts: Vec<&str> = link_text.split('|').collect();
-                if parts.len() == 2 {
-                    format!("[{}]({})", parts[1], parts[0])
-                } else {
-                    format!("[{}]({})", link_text, link_text)
-                }
+            if let Some((link, display_text)) = link_text.split_once('|') {
+                format!("[{}]({})", display_text.trim(), link.trim())
             } else {
-                format!("[{}]({})", link_text, link_text)
+                format!("[{0}]({0})", link_text)
             }
         });
         Ok(converted.to_string())
@@ -303,7 +298,7 @@ impl LLMProcessorService {
             // Detect list items
             if trimmed.starts_with("- ")
                 || trimmed.starts_with("* ")
-                || trimmed.chars().next().map_or(false, |c| c.is_ascii_digit())
+                || self.is_numbered_list_item(trimmed)
             {
                 result.push(line.to_string());
             } else if trimmed.len() > 2 && (trimmed.starts_with("• ") || trimmed.starts_with("◦ "))
@@ -334,6 +329,13 @@ impl LLMProcessorService {
             .join("\n")
             .trim()
             .to_string()
+    }
+
+    /// Check if a line is a numbered list item
+    fn is_numbered_list_item(&self, line: &str) -> bool {
+        use regex::Regex;
+        let numbered_list_re = Regex::new(r"^\d+\.\s").unwrap();
+        numbered_list_re.is_match(line)
     }
 
     /// Normalize spacing between elements
