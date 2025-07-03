@@ -19,8 +19,8 @@ mod middleware;
 mod models;
 mod services;
 
-use handlers::{posts, api, admin};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService};
+use handlers::{posts, api, admin, version};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService, VersionService};
 
 #[derive(Clone)]
 struct AppState {
@@ -77,6 +77,13 @@ async fn main() -> anyhow::Result<()> {
     ));
     info!("Media service initialized");
 
+    // Initialize version service
+    let version_service = Arc::new(VersionService::new(
+        (*database).clone(),
+        (*markdown).clone(),
+    ));
+    info!("Version service initialized");
+
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -125,6 +132,11 @@ async fn main() -> anyhow::Result<()> {
         templates: (*templates).clone(),
         llm_import: (*llm_import).clone(),
     };
+
+    let version_state = version::VersionState {
+        version_service: (*version_service).clone(),
+        database: (*database).clone(),
+    };
     
     // Create separate routers for each state type
     let web_pages_router = Router::new()
@@ -170,6 +182,16 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/posts/:slug/edit", get(admin::admin_edit_post_page))
         .with_state(admin_state);
 
+    let version_router = Router::new()
+        // Version management API endpoints (auth required)
+        .route("/api/posts/:slug/versions", get(version::get_version_history))
+        .route("/api/posts/:slug/versions/:version", get(version::get_post_version))
+        .route("/api/posts/:slug/diff/:version_from/:version_to", get(version::compare_versions))
+        .route("/api/posts/:slug/restore/:version", post(version::restore_version))
+        .route("/api/posts/:slug/versions/cleanup", post(version::cleanup_old_versions))
+        .with_state(version_state)
+        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
         .route("/api/dropbox/status", get(dropbox_status_handler))
@@ -186,6 +208,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(web_pages_router)
         .merge(api_router)
         .merge(admin_router)
+        .merge(version_router)
         .merge(legacy_router)
         .merge(media_router)
         // Static file serving
