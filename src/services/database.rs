@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Pool, Row, Sqlite, SqlitePool};
+use std::path::Path;
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -37,6 +38,48 @@ impl DatabaseService {
     /// Create a new database service with connection pool
     pub async fn new(database_url: &str) -> Result<Self> {
         info!("Connecting to database: {}", database_url);
+
+        // Ensure parent directory exists and create database file for file-based SQLite databases
+        // SQLite URLs can be "sqlite:file.db" or "sqlite://file.db"
+        let file_path = if database_url.starts_with("sqlite://") && !database_url.contains(":memory:") {
+            &database_url[9..] // Remove "sqlite://" prefix
+        } else if database_url.starts_with("sqlite:") && !database_url.contains(":memory:") {
+            &database_url[7..] // Remove "sqlite:" prefix
+        } else {
+            ""
+        };
+        
+        if !file_path.is_empty() {
+            info!("Database file path: {}", file_path);
+            let file_path = Path::new(file_path);
+            
+            // Create parent directory if it doesn't exist
+            if let Some(parent) = file_path.parent() {
+                info!("Database parent directory: {}", parent.display());
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent)
+                        .with_context(|| format!("Failed to create database directory: {}", parent.display()))?;
+                    info!("Created database directory: {}", parent.display());
+                } else {
+                    info!("Database directory already exists: {}", parent.display());
+                }
+            } else {
+                info!("Database file has no parent directory (will be created in current directory)");
+            }
+            
+            // Create database file if it doesn't exist
+            if !file_path.exists() {
+                info!("Creating database file: {}", file_path.display());
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(file_path)
+                    .with_context(|| format!("Failed to create database file: {}", file_path.display()))?;
+                info!("Created database file: {}", file_path.display());
+            } else {
+                info!("Database file already exists: {}", file_path.display());
+            }
+        }
 
         let pool = SqlitePool::connect(database_url)
             .await
