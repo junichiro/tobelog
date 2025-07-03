@@ -5,7 +5,24 @@ use sqlx::sqlite::SqliteRow;
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::models::{Post, CreatePost, UpdatePost, PostFilters, PostStats, CategoryStat};
+use crate::models::{Post, CreatePost, UpdatePost, PostFilters, PostStats, CategoryStat, MediaFile, MediaFilters};
+
+#[derive(sqlx::FromRow)]
+struct MediaFileRow {
+    id: String,
+    filename: String,
+    original_filename: String,
+    dropbox_path: String,
+    url: String,
+    file_size: i64,
+    mime_type: String,
+    width: Option<i64>,
+    height: Option<i64>,
+    uploaded_at: String,
+    thumbnail_url: Option<String>,
+    alt_text: Option<String>,
+    caption: Option<String>,
+}
 
 /// Database service for managing SQLite operations
 #[derive(Clone)]
@@ -45,6 +62,13 @@ impl DatabaseService {
             .execute(&self.pool)
             .await
             .context("Failed to run migration 002")?;
+
+        // Migration 3: Create media files table
+        let migration_3 = include_str!("../../migrations/003_create_media_table.sql");
+        sqlx::query(migration_3)
+            .execute(&self.pool)
+            .await
+            .context("Failed to run migration 003")?;
 
         info!("Database migrations completed successfully");
         Ok(())
@@ -226,13 +250,11 @@ impl DatabaseService {
         query.push_str(" ORDER BY created_at DESC");
 
         if let Some(limit) = filters.limit {
-            query.push_str(" LIMIT ?");
-            params.push(limit.to_string());
+            query.push_str(&format!(" LIMIT {}", limit));
         }
 
         if let Some(offset) = filters.offset {
-            query.push_str(" OFFSET ?");
-            params.push(offset.to_string());
+            query.push_str(&format!(" OFFSET {}", offset));
         }
 
         let mut sql_query = sqlx::query(&query);
@@ -444,5 +466,275 @@ impl DatabaseService {
     #[allow(dead_code)]
     pub fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
+    }
+
+    // Media file management methods
+
+    /// Create a new media file record
+    pub async fn create_media_file(&self, media: &MediaFile) -> Result<()> {
+        debug!("Creating media file: {}", media.filename);
+
+        sqlx::query(
+            r#"
+            INSERT INTO media_files (
+                id, filename, original_filename, dropbox_path, url, file_size,
+                mime_type, width, height, uploaded_at, thumbnail_url, alt_text, caption
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(media.id.to_string())
+        .bind(&media.filename)
+        .bind(&media.original_filename)
+        .bind(&media.dropbox_path)
+        .bind(&media.url)
+        .bind(media.file_size as i64)
+        .bind(&media.mime_type)
+        .bind(media.width.map(|w| w as i64))
+        .bind(media.height.map(|h| h as i64))
+        .bind(media.uploaded_at.to_rfc3339())
+        .bind(&media.thumbnail_url)
+        .bind(&media.alt_text)
+        .bind(&media.caption)
+        .execute(&self.pool)
+        .await
+        .context("Failed to insert media file")?;
+
+        info!("Created media file: {}", media.filename);
+        Ok(())
+    }
+
+    /// List media files with filters and pagination
+    pub async fn list_media_files(&self, filters: MediaFilters) -> Result<Vec<MediaFile>> {
+        debug!("Listing media files with filters: {:?}", filters);
+
+        let mut query = "SELECT * FROM media_files WHERE 1=1".to_string();
+        let mut params = Vec::new();
+
+        if let Some(folder) = &filters.folder {
+            query.push_str(" AND dropbox_path LIKE ?");
+            params.push(format!("%/{}/%", folder));
+        }
+
+        if let Some(mime_type) = &filters.mime_type {
+            query.push_str(" AND mime_type LIKE ?");
+            params.push(format!("{}%", mime_type));
+        }
+
+        if let Some(search) = &filters.search {
+            query.push_str(" AND (filename LIKE ? OR original_filename LIKE ? OR alt_text LIKE ? OR caption LIKE ?)");
+            let search_param = format!("%{}%", search);
+            params.push(search_param.clone());
+            params.push(search_param.clone());
+            params.push(search_param.clone());
+            params.push(search_param);
+        }
+
+        query.push_str(" ORDER BY uploaded_at DESC");
+
+        if let Some(limit) = filters.limit {
+            query.push_str(&format!(" LIMIT {}", limit));
+        }
+
+        if let Some(offset) = filters.offset {
+            query.push_str(&format!(" OFFSET {}", offset));
+        }
+
+        let mut sql_query = sqlx::query(&query);
+        for param in params {
+            sql_query = sql_query.bind(param);
+        }
+
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to fetch media files")?;
+
+        let media_files = rows
+            .into_iter()
+            .map(|row| self.row_to_media_file(row))
+            .collect::<Result<Vec<_>>>()?;
+
+        debug!("Found {} media files", media_files.len());
+        Ok(media_files)
+    }
+
+    /// Count media files with filters
+    pub async fn count_media_files(&self, filters: MediaFilters) -> Result<usize> {
+        debug!("Counting media files with filters: {:?}", filters);
+
+        let mut query = "SELECT COUNT(*) FROM media_files WHERE 1=1".to_string();
+        let mut params = Vec::new();
+
+        if let Some(folder) = &filters.folder {
+            query.push_str(" AND dropbox_path LIKE ?");
+            params.push(format!("%/{}/%", folder));
+        }
+
+        if let Some(mime_type) = &filters.mime_type {
+            query.push_str(" AND mime_type LIKE ?");
+            params.push(format!("{}%", mime_type));
+        }
+
+        if let Some(search) = &filters.search {
+            query.push_str(" AND (filename LIKE ? OR original_filename LIKE ? OR alt_text LIKE ? OR caption LIKE ?)");
+            let search_param = format!("%{}%", search);
+            params.push(search_param.clone());
+            params.push(search_param.clone());
+            params.push(search_param.clone());
+            params.push(search_param);
+        }
+
+        let mut sql_query = sqlx::query_scalar::<_, i64>(&query);
+        for param in params {
+            sql_query = sql_query.bind(param);
+        }
+
+        let count = sql_query
+            .fetch_one(&self.pool)
+            .await
+            .context("Failed to count media files")?;
+
+        debug!("Found {} media files matching filters", count);
+        Ok(count as usize)
+    }
+
+    /// Get media file by ID
+    pub async fn get_media_file(&self, id: Uuid) -> Result<Option<MediaFile>> {
+        debug!("Getting media file by ID: {}", id);
+
+        let row = sqlx::query_as::<_, MediaFileRow>(
+            "SELECT * FROM media_files WHERE id = ?"
+        )
+        .bind(id.to_string())
+        .fetch_optional(&self.pool)
+        .await
+        .context("Failed to fetch media file")?;
+
+        match row {
+            Some(row) => {
+                let media_file = MediaFile {
+                    id: Uuid::parse_str(&row.id).context("Invalid UUID in database")?,
+                    filename: row.filename,
+                    original_filename: row.original_filename,
+                    dropbox_path: row.dropbox_path,
+                    url: row.url,
+                    file_size: row.file_size as u64,
+                    mime_type: row.mime_type,
+                    width: row.width.map(|w| w as u32),
+                    height: row.height.map(|h| h as u32),
+                    uploaded_at: DateTime::parse_from_rfc3339(&row.uploaded_at)
+                        .context("Invalid uploaded_at timestamp")?
+                        .with_timezone(&Utc),
+                    thumbnail_url: row.thumbnail_url,
+                    alt_text: row.alt_text,
+                    caption: row.caption,
+                };
+                Ok(Some(media_file))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Delete media file by ID
+    pub async fn delete_media_file(&self, id: Uuid) -> Result<bool> {
+        debug!("Deleting media file by ID: {}", id);
+
+        let result = sqlx::query(
+            "DELETE FROM media_files WHERE id = ?"
+        )
+        .bind(id.to_string())
+        .execute(&self.pool)
+        .await
+        .context("Failed to delete media file")?;
+
+        let deleted = result.rows_affected() > 0;
+        if deleted {
+            info!("Deleted media file: {}", id);
+        } else {
+            debug!("Media file not found for deletion: {}", id);
+        }
+
+        Ok(deleted)
+    }
+
+    /// Associate media file with a post
+    pub async fn associate_media_with_post(&self, post_id: Uuid, media_id: Uuid) -> Result<()> {
+        debug!("Associating media {} with post {}", media_id, post_id);
+
+        sqlx::query(
+            "INSERT OR IGNORE INTO posts_media (post_id, media_id) VALUES (?, ?)"
+        )
+        .bind(post_id.to_string())
+        .bind(media_id.to_string())
+        .execute(&self.pool)
+        .await
+        .context("Failed to associate media with post")?;
+
+        Ok(())
+    }
+
+    /// Get media files associated with a post
+    pub async fn get_post_media(&self, post_id: Uuid) -> Result<Vec<MediaFile>> {
+        debug!("Getting media files for post: {}", post_id);
+
+        let rows = sqlx::query_as::<_, MediaFileRow>(
+            r#"
+            SELECT m.* FROM media_files m
+            JOIN posts_media pm ON m.id = pm.media_id
+            WHERE pm.post_id = ?
+            ORDER BY m.uploaded_at DESC
+            "#,
+        )
+        .bind(post_id.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .context("Failed to fetch post media")?;
+
+        let media_files = rows
+            .into_iter()
+            .map(|row| -> Result<MediaFile> {
+                Ok(MediaFile {
+                    id: Uuid::parse_str(&row.id).context("Invalid UUID in database")?,
+                    filename: row.filename,
+                    original_filename: row.original_filename,
+                    dropbox_path: row.dropbox_path,
+                    url: row.url,
+                    file_size: row.file_size as u64,
+                    mime_type: row.mime_type,
+                    width: row.width.map(|w| w as u32),
+                    height: row.height.map(|h| h as u32),
+                    uploaded_at: DateTime::parse_from_rfc3339(&row.uploaded_at)
+                        .context("Invalid uploaded_at timestamp")?
+                        .with_timezone(&Utc),
+                    thumbnail_url: row.thumbnail_url,
+                    alt_text: row.alt_text,
+                    caption: row.caption,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        debug!("Found {} media files for post", media_files.len());
+        Ok(media_files)
+    }
+
+    /// Helper method to convert SqliteRow to MediaFile
+    fn row_to_media_file(&self, row: SqliteRow) -> Result<MediaFile> {
+        Ok(MediaFile {
+            id: Uuid::parse_str(row.try_get("id")?).context("Invalid UUID in database")?,
+            filename: row.try_get("filename")?,
+            original_filename: row.try_get("original_filename")?,
+            dropbox_path: row.try_get("dropbox_path")?,
+            url: row.try_get("url")?,
+            file_size: row.try_get::<i64, _>("file_size")? as u64,
+            mime_type: row.try_get("mime_type")?,
+            width: row.try_get::<Option<i64>, _>("width")?.map(|w| w as u32),
+            height: row.try_get::<Option<i64>, _>("height")?.map(|h| h as u32),
+            uploaded_at: DateTime::parse_from_rfc3339(row.try_get("uploaded_at")?)
+                .context("Invalid uploaded_at timestamp")?
+                .with_timezone(&Utc),
+            thumbnail_url: row.try_get("thumbnail_url")?,
+            alt_text: row.try_get("alt_text")?,
+            caption: row.try_get("caption")?,
+        })
     }
 }

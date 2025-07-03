@@ -338,7 +338,7 @@ impl BlogStorageService {
     async fn load_blog_post_from_file(&self, file_metadata: &FileMetadata) -> Result<Option<BlogPost>> {
         self.check_rate_limit().await?;
         
-        let content = self.dropbox_client.download_file(&file_metadata.path_display).await
+        let content = self.dropbox_client.download_text_file(&file_metadata.path_display).await
             .with_context(|| format!("Failed to download file: {}", file_metadata.path_display))?;
 
         self.parse_blog_post(&content, file_metadata)

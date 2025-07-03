@@ -1,17 +1,21 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{header, StatusCode},
+    response::{Json, Response},
+    body::Body,
 };
+use axum_extra::extract::{Multipart, multipart::Field};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 use crate::models::{
     response::{PostListResponse, PostResponse, PostSummary, ErrorResponse, 
               BlogStatsResponse, CategoryInfo, TagInfo},
     PostFilters, CreatePost, UpdatePost, LLMArticleImportRequest, LLMArticleImportResponse,
-    BatchImportRequest, BatchImportResponse
+    BatchImportRequest, BatchImportResponse, MediaQuery, MediaListResponse, 
+    MediaUploadResponse, MediaFilters
 };
-use crate::services::{DatabaseService, MarkdownService, BlogStorageService, LLMImportService};
+use crate::services::{DatabaseService, MarkdownService, BlogStorageService, LLMImportService, MediaService};
 use std::sync::Arc;
 
 /// Query parameters for post listing API
@@ -32,6 +36,7 @@ pub struct ApiState {
     pub markdown: MarkdownService,
     pub blog_storage: Arc<BlogStorageService>,
     pub llm_import: LLMImportService,
+    pub media: MediaService,
 }
 
 /// GET /api/posts - List posts with pagination and filtering
@@ -1004,4 +1009,200 @@ pub struct SaveLLMArticleRequest {
     pub featured: bool,
     pub author: Option<String>,
     pub dropbox_path: String,
+}
+
+// Media API endpoints
+
+/// POST /api/media/upload - Upload media file
+pub async fn upload_media_api(
+    State(state): State<ApiState>,
+    mut multipart: Multipart,
+) -> Result<Json<MediaUploadResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Uploading media file");
+
+    let mut alt_text: Option<String> = None;
+    let mut caption: Option<String> = None;
+    let mut file_field: Option<Field> = None;
+
+    // Process multipart form data
+    while let Some(field) = multipart.next_field().await
+        .map_err(|e| {
+            error!("Failed to read multipart field: {}", e);
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::bad_request("Invalid multipart data"))
+            )
+        })? {
+        
+        match field.name() {
+            Some("file") => {
+                file_field = Some(field);
+            }
+            Some("alt_text") => {
+                alt_text = field.text().await.ok();
+            }
+            Some("caption") => {
+                caption = field.text().await.ok();
+            }
+            _ => {
+                // Skip unknown fields
+                let _ = field.bytes().await;
+            }
+        }
+    }
+
+    let file_field = file_field.ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("No file provided"))
+        )
+    })?;
+
+    // Upload file using media service
+    let media_file = state.media.upload_file(file_field, alt_text, caption).await
+        .map_err(|e| {
+            error!("Media upload error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error(&format!("Upload failed: {}", e)))
+            )
+        })?;
+
+    let response = MediaUploadResponse {
+        success: true,
+        message: format!("File '{}' uploaded successfully", media_file.filename),
+        media: Some(media_file),
+        errors: None,
+    };
+
+    Ok(Json(response))
+}
+
+/// GET /api/media - List media files
+pub async fn list_media_api(
+    Query(query): Query<MediaQuery>,
+    State(state): State<ApiState>,
+) -> Result<Json<MediaListResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Listing media files with query: {:?}", query);
+
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(20).min(100); // Limit to 100 per page
+    let offset = (page.saturating_sub(1)) * per_page;
+
+    let filters = MediaFilters {
+        folder: query.folder.clone(),
+        mime_type: query.mime_type.clone(),
+        search: query.search.clone(),
+        limit: Some(per_page as i64),
+        offset: Some(offset as i64),
+    };
+
+    // Get media files
+    let media_files = state.media.list_media_files(filters.clone()).await
+        .map_err(|e| {
+            error!("Database error listing media: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to load media files"))
+            )
+        })?;
+
+    // Get total count
+    let mut count_filters = filters.clone();
+    count_filters.limit = None;
+    count_filters.offset = None;
+
+    let total_count = state.media.count_media_files(count_filters).await
+        .map_err(|e| {
+            error!("Database error counting media: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to count media files"))
+            )
+        })?;
+
+    let total_pages = total_count.div_ceil(per_page);
+
+    let response = MediaListResponse {
+        media: media_files,
+        total: total_count,
+        page,
+        per_page,
+        total_pages,
+    };
+
+    Ok(Json(response))
+}
+
+/// DELETE /api/media/{id} - Delete media file
+pub async fn delete_media_api(
+    Path(id): Path<String>,
+    State(state): State<ApiState>,
+) -> Result<Json<MediaUploadResponse>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Deleting media file with ID: {}", id);
+
+    let media_id = Uuid::parse_str(&id)
+        .map_err(|_| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::bad_request("Invalid media ID format"))
+            )
+        })?;
+
+    let deleted = state.media.delete_media_file(media_id).await
+        .map_err(|e| {
+            error!("Media deletion error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to delete media file"))
+            )
+        })?;
+
+    if !deleted {
+        return Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::not_found("Media file not found"))
+        ));
+    }
+
+    let response = MediaUploadResponse {
+        success: true,
+        message: "Media file deleted successfully".to_string(),
+        media: None,
+        errors: None,
+    };
+
+    Ok(Json(response))
+}
+
+/// GET /media/{path} - Serve media file
+pub async fn serve_media_file(
+    Path(path): Path<String>,
+    State(state): State<ApiState>,
+) -> Result<Response<Body>, (StatusCode, Json<ErrorResponse>)> {
+    debug!("API: Serving media file: {}", path);
+
+    let (data, mime_type) = state.media.serve_media_file(&path).await
+        .map_err(|e| {
+            error!("Media serving error: {}", e);
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::not_found("Media file not found"))
+            )
+        })?;
+
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, mime_type)
+        .header(header::CACHE_CONTROL, "public, max-age=31536000") // Cache for 1 year
+        .body(Body::from(data))
+        .map_err(|e| {
+            error!("Failed to build response: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to serve file"))
+            )
+        })?;
+
+    Ok(response)
 }

@@ -148,7 +148,7 @@ impl DropboxClient {
         Ok(result)
     }
 
-    pub async fn download_file(&self, path: &str) -> Result<String> {
+    pub async fn download_file(&self, path: &str) -> Result<Vec<u8>> {
         let url = "https://content.dropboxapi.com/2/files/download";
         
         let mut headers = HeaderMap::new();
@@ -187,11 +187,17 @@ impl DropboxClient {
         }
 
         let content = response
-            .text()
+            .bytes()
             .await
             .context("Failed to read file content")?;
 
-        Ok(content)
+        Ok(content.to_vec())
+    }
+
+    pub async fn download_text_file(&self, path: &str) -> Result<String> {
+        let bytes = self.download_file(path).await?;
+        String::from_utf8(bytes)
+            .context("File content is not valid UTF-8")
     }
 
     #[allow(dead_code)]
@@ -236,6 +242,60 @@ impl DropboxClient {
             let error_text = response.text().await.unwrap_or_default();
             anyhow::bail!(
                 "Dropbox file upload failed with status {}: {}",
+                status,
+                error_text
+            );
+        }
+
+        let metadata: FileMetadata = response
+            .json()
+            .await
+            .context("Failed to parse upload response")?;
+
+        Ok(metadata)
+    }
+
+    pub async fn upload_binary_file(&self, path: &str, data: &[u8]) -> Result<FileMetadata> {
+        let url = "https://content.dropboxapi.com/2/files/upload";
+        
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", self.access_token))
+                .context("Failed to create authorization header")?,
+        );
+
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+
+        let upload_args = serde_json::json!({
+            "path": path,
+            "mode": "overwrite",
+            "autorename": false
+        });
+
+        headers.insert(
+            "Dropbox-API-Arg",
+            HeaderValue::from_str(&upload_args.to_string())
+                .context("Failed to create Dropbox-API-Arg header")?,
+        );
+
+        let response = self
+            .client
+            .post(url)
+            .headers(headers)
+            .body(data.to_vec())
+            .send()
+            .await
+            .context("Failed to send upload file request")?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_default();
+            anyhow::bail!(
+                "Dropbox binary file upload failed with status {}: {}",
                 status,
                 error_text
             );
