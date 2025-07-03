@@ -70,6 +70,13 @@ impl DatabaseService {
             .await
             .context("Failed to run migration 003")?;
 
+        // Migration 4: Create post versions table
+        let migration_4 = include_str!("../../migrations/004_create_post_versions_table.sql");
+        sqlx::query(migration_4)
+            .execute(&self.pool)
+            .await
+            .context("Failed to run migration 004")?;
+
         info!("Database migrations completed successfully");
         Ok(())
     }
@@ -735,6 +742,175 @@ impl DatabaseService {
             thumbnail_url: row.try_get("thumbnail_url")?,
             alt_text: row.try_get("alt_text")?,
             caption: row.try_get("caption")?,
+        })
+    }
+
+    // Version management methods
+
+    /// Create a new post version record
+    pub async fn create_post_version(&self, version: &crate::models::CreatePostVersion) -> Result<crate::models::PostVersion> {
+        debug!("Creating post version {} for post {}", version.version, version.post_id);
+
+        let now = Utc::now();
+        let version_id = sqlx::query(
+            r#"
+            INSERT INTO post_versions (
+                post_id, version, title, content, html_content, excerpt, category, tags,
+                metadata, change_summary, created_at, created_by
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(version.post_id.to_string())
+        .bind(version.version)
+        .bind(&version.title)
+        .bind(&version.content)
+        .bind(&version.html_content)
+        .bind(&version.excerpt)
+        .bind(&version.category)
+        .bind(serde_json::to_string(&version.tags).unwrap_or_else(|_| "[]".to_string()))
+        .bind(version.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".to_string())))
+        .bind(&version.change_summary)
+        .bind(now.to_rfc3339())
+        .bind(&version.created_by)
+        .execute(&self.pool)
+        .await
+        .context("Failed to insert post version")?;
+
+        let id = version_id.last_insert_rowid();
+
+        Ok(crate::models::PostVersion {
+            id,
+            post_id: version.post_id,
+            version: version.version,
+            title: version.title.clone(),
+            content: version.content.clone(),
+            html_content: version.html_content.clone(),
+            excerpt: version.excerpt.clone(),
+            category: version.category.clone(),
+            tags: version.tags.clone(),
+            metadata: version.metadata.clone(),
+            change_summary: version.change_summary.clone(),
+            created_at: now,
+            created_by: version.created_by.clone(),
+        })
+    }
+
+    /// Get a specific version of a post
+    pub async fn get_post_version(&self, post_id: uuid::Uuid, version: i32) -> Result<Option<crate::models::PostVersion>> {
+        debug!("Getting version {} for post {}", version, post_id);
+
+        let row = sqlx::query(
+            "SELECT * FROM post_versions WHERE post_id = ? AND version = ? LIMIT 1"
+        )
+        .bind(post_id.to_string())
+        .bind(version)
+        .fetch_optional(&self.pool)
+        .await
+        .context("Failed to get post version")?;
+
+        if let Some(row) = row {
+            let version = self.row_to_post_version(&row)?;
+            Ok(Some(version))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// List post versions with filters
+    pub async fn list_post_versions(&self, filters: crate::models::VersionFilters) -> Result<Vec<crate::models::PostVersion>> {
+        debug!("Listing post versions with filters: {:?}", filters);
+
+        let mut query = "SELECT * FROM post_versions WHERE 1=1".to_string();
+        let mut params = Vec::new();
+
+        if let Some(post_id) = filters.post_id {
+            query.push_str(" AND post_id = ?");
+            params.push(post_id.to_string());
+        }
+
+        query.push_str(" ORDER BY version DESC");
+
+        if let Some(limit) = filters.limit {
+            query.push_str(&format!(" LIMIT {}", limit));
+        }
+
+        if let Some(offset) = filters.offset {
+            query.push_str(&format!(" OFFSET {}", offset));
+        }
+
+        let mut sql_query = sqlx::query(&query);
+        for param in params {
+            sql_query = sql_query.bind(param);
+        }
+
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to fetch post versions")?;
+
+        let versions = rows
+            .iter()
+            .map(|row| self.row_to_post_version(row))
+            .collect::<Result<Vec<_>>>()?;
+
+        debug!("Found {} versions", versions.len());
+        Ok(versions)
+    }
+
+    /// Delete old versions, keeping only the most recent N versions
+    pub async fn cleanup_old_versions(&self, post_id: uuid::Uuid, keep_versions: i32) -> Result<usize> {
+        debug!("Cleaning up old versions for post {}, keeping {} versions", post_id, keep_versions);
+
+        let result = sqlx::query(
+            r#"
+            DELETE FROM post_versions 
+            WHERE post_id = ? 
+            AND version NOT IN (
+                SELECT version FROM post_versions 
+                WHERE post_id = ? 
+                ORDER BY version DESC 
+                LIMIT ?
+            )
+            "#
+        )
+        .bind(post_id.to_string())
+        .bind(post_id.to_string())
+        .bind(keep_versions)
+        .execute(&self.pool)
+        .await
+        .context("Failed to cleanup old versions")?;
+
+        let deleted_count = result.rows_affected() as usize;
+        debug!("Deleted {} old versions", deleted_count);
+        Ok(deleted_count)
+    }
+
+    /// Helper method to convert SqliteRow to PostVersion
+    fn row_to_post_version(&self, row: &sqlx::sqlite::SqliteRow) -> Result<crate::models::PostVersion> {
+        let tags_json: String = row.try_get("tags")?;
+        let tags: Vec<String> = serde_json::from_str(&tags_json)
+            .unwrap_or_else(|_| Vec::new());
+
+        let metadata_json: Option<String> = row.try_get("metadata")?;
+        let metadata = metadata_json
+            .and_then(|json| serde_json::from_str(&json).ok());
+
+        Ok(crate::models::PostVersion {
+            id: row.try_get("id")?,
+            post_id: uuid::Uuid::parse_str(row.try_get("post_id")?).context("Invalid UUID in database")?,
+            version: row.try_get("version")?,
+            title: row.try_get("title")?,
+            content: row.try_get("content")?,
+            html_content: row.try_get("html_content")?,
+            excerpt: row.try_get("excerpt")?,
+            category: row.try_get("category")?,
+            tags,
+            metadata,
+            change_summary: row.try_get("change_summary")?,
+            created_at: DateTime::parse_from_rfc3339(row.try_get("created_at")?)
+                .context("Invalid created_at timestamp")?
+                .with_timezone(&Utc),
+            created_by: row.try_get("created_by")?,
         })
     }
 }

@@ -7,6 +7,7 @@ pub mod database;
 pub mod template;
 pub mod llm_import;
 pub mod media;
+pub mod version;
 
 pub use dropbox::DropboxClient;
 pub use blog_storage::BlogStorageService;
@@ -15,3 +16,4 @@ pub use database::DatabaseService;
 pub use template::TemplateService;
 pub use llm_import::LLMImportService;
 pub use media::MediaService;
+pub use version::VersionService;
