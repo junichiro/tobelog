@@ -79,25 +79,25 @@ struct PostFormPost {
 }
 
 /// GET /admin - Admin dashboard
-pub async fn dashboard(
-    State(state): State<AdminState>,
-) -> Result<Html<String>, StatusCode> {
+pub async fn dashboard(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering admin dashboard");
 
     // Get statistics
-    let stats = state.database.get_post_stats().await
-        .map_err(|e| {
-            error!("Failed to get post stats: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let stats = state.database.get_post_stats().await.map_err(|e| {
+        error!("Failed to get post stats: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Get recent posts
     let recent_filters = PostFilters {
         limit: Some(10),
         ..Default::default()
     };
-    
-    let recent_posts = state.database.list_posts(recent_filters).await
+
+    let recent_posts = state
+        .database
+        .list_posts(recent_filters)
+        .await
         .map_err(|e| {
             error!("Failed to get recent posts: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -109,8 +109,11 @@ pub async fn dashboard(
         limit: Some(10),
         ..Default::default()
     };
-    
-    let draft_posts = state.database.list_posts(draft_filters).await
+
+    let draft_posts = state
+        .database
+        .list_posts(draft_filters)
+        .await
         .map_err(|e| {
             error!("Failed to get draft posts: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -132,7 +135,9 @@ pub async fn dashboard(
         tags: stats.tags,
     };
 
-    let html = state.templates.render("admin/dashboard.html", &context)
+    let html = state
+        .templates
+        .render("admin/dashboard.html", &context)
         .map_err(|e| {
             error!("Failed to render dashboard template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -142,9 +147,7 @@ pub async fn dashboard(
 }
 
 /// GET /admin/posts - List all posts for management
-pub async fn posts_list(
-    State(state): State<AdminState>,
-) -> Result<Html<String>, StatusCode> {
+pub async fn posts_list(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering admin posts list");
 
     let filters = PostFilters {
@@ -152,18 +155,19 @@ pub async fn posts_list(
         ..Default::default()
     };
 
-    let posts = state.database.list_posts(filters).await
-        .map_err(|e| {
-            error!("Failed to list posts: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let posts = state.database.list_posts(filters).await.map_err(|e| {
+        error!("Failed to list posts: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let context = PostListContext {
         page_title: "Manage Posts".to_string(),
         posts,
     };
 
-    let html = state.templates.render("admin/post_list.html", &context)
+    let html = state
+        .templates
+        .render("admin/post_list.html", &context)
         .map_err(|e| {
             error!("Failed to render post list template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -173,9 +177,7 @@ pub async fn posts_list(
 }
 
 /// GET /admin/new - New post creation form
-pub async fn new_post_form(
-    State(state): State<AdminState>,
-) -> Result<Html<String>, StatusCode> {
+pub async fn new_post_form(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering new post form");
 
     let context = PostFormContext {
@@ -193,7 +195,9 @@ pub async fn new_post_form(
         },
     };
 
-    let html = state.templates.render("admin/post_form.html", &context)
+    let html = state
+        .templates
+        .render("admin/post_form.html", &context)
         .map_err(|e| {
             error!("Failed to render post form template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -209,11 +213,10 @@ pub async fn edit_post_form(
 ) -> Result<Html<String>, StatusCode> {
     debug!("Rendering edit form for post: {}", slug);
 
-    let post = state.database.get_post_by_slug(&slug).await
-        .map_err(|e| {
-            error!("Failed to get post {}: {}", slug, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let post = state.database.get_post_by_slug(&slug).await.map_err(|e| {
+        error!("Failed to get post {}: {}", slug, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let post = match post {
         Some(p) => p,
@@ -241,7 +244,9 @@ pub async fn edit_post_form(
         },
     };
 
-    let html = state.templates.render("admin/post_form.html", &context)
+    let html = state
+        .templates
+        .render("admin/post_form.html", &context)
         .map_err(|e| {
             error!("Failed to render post form template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -257,19 +262,16 @@ pub async fn preview_post(
 ) -> Result<Html<String>, StatusCode> {
     debug!("Generating preview for markdown content");
 
-    let html = state.markdown.markdown_to_html(&content)
-        .map_err(|e| {
-            error!("Failed to convert markdown to HTML: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let html = state.markdown.markdown_to_html(&content).map_err(|e| {
+        error!("Failed to convert markdown to HTML: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Html(html))
 }
 
 /// GET /admin/llm-import - LLM article import form
-pub async fn llm_import_form(
-    State(state): State<AdminState>
-) -> Result<Html<String>, StatusCode> {
+pub async fn llm_import_form(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering LLM import form");
 
     // Create context for the template
@@ -282,7 +284,9 @@ pub async fn llm_import_form(
         page_title: "LLM Article Import".to_string(),
     };
 
-    let html = state.templates.render("admin/llm_import.html", &context)
+    let html = state
+        .templates
+        .render("admin/llm_import.html", &context)
         .map_err(|e| {
             error!("Failed to render LLM import template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -301,8 +305,6 @@ fn parse_tags(tags_string: Option<String>) -> Vec<String> {
         .map(|s| s.to_string())
         .collect()
 }
-
-/// GET /admin/import - LLM article import page
 pub async fn admin_import_page(
     State(state): State<AdminState>
 ) -> Result<Html<String>, (StatusCode, Html<String>)> {

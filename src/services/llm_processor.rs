@@ -1,6 +1,6 @@
 use crate::handlers::api::{
-    LLMFormat, LLMArticlePreview, QualityCheckResults, DuplicateCheckResult, 
-    ContentQualityResult, MetadataCompletenessResult, SimilarPost, ObsidianIntegration
+    ContentQualityResult, DuplicateCheckResult, LLMArticlePreview, LLMFormat,
+    MetadataCompletenessResult, ObsidianIntegration, QualityCheckResults, SimilarPost,
 };
 use crate::services::{DatabaseService, MarkdownService};
 use anyhow::Result;
@@ -16,10 +16,7 @@ pub struct LLMProcessorService {
 
 impl LLMProcessorService {
     pub fn new(database: DatabaseService, markdown: MarkdownService) -> Self {
-        Self {
-            database,
-            markdown,
-        }
+        Self { database, markdown }
     }
 
     /// Process LLM content and return a preview with extracted metadata
@@ -247,7 +244,7 @@ impl LLMProcessorService {
 
         for (i, line) in lines.iter().enumerate() {
             let trimmed = line.trim();
-            
+
             // Skip if already a heading
             if trimmed.starts_with('#') {
                 result.push(line.to_string());
@@ -280,7 +277,7 @@ impl LLMProcessorService {
         let has_title_case = line.chars().next().map_or(false, |c| c.is_uppercase());
         let has_no_punctuation = !line.contains('.') && !line.contains(',');
         let reasonable_length = line.len() >= 3 && line.len() <= 60;
-        
+
         has_title_case && has_no_punctuation && reasonable_length
     }
 
@@ -302,13 +299,15 @@ impl LLMProcessorService {
 
         for line in lines {
             let trimmed = line.trim();
-            
+
             // Detect list items
-            if trimmed.starts_with("- ") || trimmed.starts_with("* ") || 
-               trimmed.chars().next().map_or(false, |c| c.is_ascii_digit()) {
+            if trimmed.starts_with("- ")
+                || trimmed.starts_with("* ")
+                || trimmed.chars().next().map_or(false, |c| c.is_ascii_digit())
+            {
                 result.push(line.to_string());
-            } else if trimmed.len() > 2 && 
-                     (trimmed.starts_with("• ") || trimmed.starts_with("◦ ")) {
+            } else if trimmed.len() > 2 && (trimmed.starts_with("• ") || trimmed.starts_with("◦ "))
+            {
                 // Convert bullet points to markdown lists
                 result.push(format!("- {}", &trimmed[2..]));
             } else {
@@ -328,7 +327,8 @@ impl LLMProcessorService {
 
     /// Normalize whitespace
     fn normalize_whitespace(&self, content: &str) -> String {
-        content.lines()
+        content
+            .lines()
             .map(|line| line.trim_end())
             .collect::<Vec<_>>()
             .join("\n")
@@ -344,12 +344,12 @@ impl LLMProcessorService {
 
         for line in lines {
             let is_empty = line.trim().is_empty();
-            
+
             if is_empty && prev_was_empty {
                 // Skip multiple empty lines
                 continue;
             }
-            
+
             result.push(line.to_string());
             prev_was_empty = is_empty;
         }
@@ -358,7 +358,10 @@ impl LLMProcessorService {
     }
 
     /// Extract metadata from content
-    async fn extract_metadata(&self, content: &str) -> Result<(Option<String>, Option<String>, Vec<String>)> {
+    async fn extract_metadata(
+        &self,
+        content: &str,
+    ) -> Result<(Option<String>, Option<String>, Vec<String>)> {
         let title = self.extract_title(content);
         let category = self.extract_category(content).await?;
         let tags = self.extract_tags(content);
@@ -389,9 +392,8 @@ impl LLMProcessorService {
     async fn extract_category(&self, content: &str) -> Result<Option<String>> {
         // Get existing categories from database
         let stats = self.database.get_post_stats().await?;
-        let existing_categories: Vec<String> = stats.categories.iter()
-            .map(|c| c.name.clone())
-            .collect();
+        let existing_categories: Vec<String> =
+            stats.categories.iter().map(|c| c.name.clone()).collect();
 
         // Simple keyword matching
         let content_lower = content.to_lowercase();
@@ -402,11 +404,16 @@ impl LLMProcessorService {
         }
 
         // Default categories based on content analysis
-        if content_lower.contains("tech") || content_lower.contains("programming") || 
-           content_lower.contains("code") || content_lower.contains("software") {
+        if content_lower.contains("tech")
+            || content_lower.contains("programming")
+            || content_lower.contains("code")
+            || content_lower.contains("software")
+        {
             Ok(Some("tech".to_string()))
-        } else if content_lower.contains("tutorial") || content_lower.contains("how to") ||
-                  content_lower.contains("guide") {
+        } else if content_lower.contains("tutorial")
+            || content_lower.contains("how to")
+            || content_lower.contains("guide")
+        {
             Ok(Some("tutorial".to_string()))
         } else {
             Ok(None)
@@ -455,7 +462,7 @@ impl LLMProcessorService {
             .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
             .collect::<Vec<_>>()
             .join(" ");
-        
+
         if text.len() <= max_length {
             text
         } else {
@@ -482,13 +489,14 @@ impl LLMProcessorService {
     ) -> Result<DuplicateCheckResult> {
         // Get all existing posts
         let posts = self.database.list_posts(Default::default()).await?;
-        
+
         let mut similar_posts = Vec::new();
         let mut max_similarity: f32 = 0.0;
 
         for post in posts {
-            let similarity = self.calculate_similarity(content, &post.content, title, Some(&post.title));
-            
+            let similarity =
+                self.calculate_similarity(content, &post.content, title, Some(&post.title));
+
             if similarity > 0.7 {
                 similar_posts.push(SimilarPost {
                     slug: post.slug,
@@ -505,7 +513,11 @@ impl LLMProcessorService {
         Ok(DuplicateCheckResult {
             is_duplicate: max_similarity > 0.9,
             similar_posts,
-            similarity_score: if max_similarity > 0.0 { Some(max_similarity) } else { None },
+            similarity_score: if max_similarity > 0.0 {
+                Some(max_similarity)
+            } else {
+                None
+            },
         })
     }
 
@@ -520,10 +532,10 @@ impl LLMProcessorService {
         // Simple similarity calculation based on common words
         let words1: std::collections::HashSet<&str> = content1.split_whitespace().collect();
         let words2: std::collections::HashSet<&str> = content2.split_whitespace().collect();
-        
+
         let intersection = words1.intersection(&words2).count();
         let union = words1.union(&words2).count();
-        
+
         let content_similarity = if union > 0 {
             intersection as f32 / union as f32
         } else {
@@ -539,7 +551,7 @@ impl LLMProcessorService {
                 let t2_words: std::collections::HashSet<&str> = t2.split_whitespace().collect();
                 let t_intersection = t1_words.intersection(&t2_words).count();
                 let t_union = t1_words.union(&t2_words).count();
-                
+
                 if t_union > 0 {
                     t_intersection as f32 / t_union as f32
                 } else {

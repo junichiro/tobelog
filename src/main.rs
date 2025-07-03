@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     middleware::{from_fn_with_state, from_fn},
     response::Json,
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Router,
 };
 use serde_json::{json, Value};
@@ -34,9 +34,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
@@ -104,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
                     info!("✅ Connected to Dropbox account: {}", display_name);
                 }
             }
-            
+
             // Initialize blog folder structure
             if let Err(e) = blog_storage.initialize_blog_structure().await {
                 warn!("⚠️  Failed to initialize blog structure: {}", e);
@@ -155,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
         theme_service: (*theme_service).clone(),
         database: (*database).clone(),
     };
-    
+
     // Create separate routers for each state type
     let web_pages_router = Router::new()
         .route("/", get(posts::home_page))
@@ -330,11 +328,12 @@ async fn list_posts_handler(State(state): State<AppState>) -> Result<Json<Value>
     }
 }
 
-async fn get_post_handler(Path(slug): Path<String>, State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+async fn get_post_handler(
+    Path(slug): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Value>, StatusCode> {
     match state.blog_storage.get_post_by_slug(&slug).await {
-        Ok(Some(post)) => {
-            Ok(Json(serde_json::to_value(post).unwrap()))
-        }
+        Ok(Some(post)) => Ok(Json(serde_json::to_value(post).unwrap())),
         Ok(None) => {
             let response = json!({
                 "error": format!("Post with slug '{}' not found", slug)

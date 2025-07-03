@@ -20,7 +20,7 @@ pub async fn auth_middleware(
 ) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
     let path = request.uri().path();
     let method = request.method().as_str();
-    
+
     // Skip authentication for read-only endpoints and GET methods
     if method == "GET" || is_read_only_endpoint(path, method) {
         debug!("Skipping auth for read-only endpoint: {} {}", method, path);
@@ -28,10 +28,13 @@ pub async fn auth_middleware(
     }
 
     debug!("Auth middleware processing: {} {}", method, path);
-    
+
     // Skip authentication if no API key is configured
     let Some(expected_api_key) = &config.api_key else {
-        debug!("No API key configured, allowing request to: {} {}", method, path);
+        debug!(
+            "No API key configured, allowing request to: {} {}",
+            method, path
+        );
         return Ok(next.run(request).await);
     };
 
@@ -82,14 +85,11 @@ fn is_read_only_endpoint(path: &str, method: &str) -> bool {
     if method == "GET" {
         return true;
     }
-    
+
     // Allow specific endpoints regardless of method
-    matches!(path, 
-        "/" |
-        "/health" |
-        "/api/dropbox/status"
-    ) || path.starts_with("/posts/") 
-      || path.starts_with("/static/")
+    matches!(path, "/" | "/health" | "/api/dropbox/status")
+        || path.starts_with("/posts/")
+        || path.starts_with("/static/")
 }
 
 /// Rate limiting middleware (placeholder for future implementation)

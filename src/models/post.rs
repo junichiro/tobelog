@@ -347,7 +347,7 @@ mod tests {
 
         let post = Post::new(create_data);
         let url_path = post.get_url_path();
-        
+
         assert!(url_path.starts_with("/posts/"));
         assert!(url_path.ends_with("/hello-world"));
     }

@@ -1,5 +1,8 @@
 use anyhow::{Context, Result};
-use reqwest::{Client, header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE}};
+use reqwest::{
+    header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE},
+    Client,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -53,18 +56,14 @@ impl DropboxClient {
 
     fn create_headers(&self) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
-        
+
         let auth_value = format!("Bearer {}", self.access_token);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&auth_value)
-                .context("Failed to create authorization header")?,
+            HeaderValue::from_str(&auth_value).context("Failed to create authorization header")?,
         );
-        
-        headers.insert(
-            CONTENT_TYPE,
-            HeaderValue::from_static("application/json"),
-        );
+
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 
         Ok(headers)
     }
@@ -74,8 +73,7 @@ impl DropboxClient {
         let auth_value = format!("Bearer {}", self.access_token);
         headers.insert(
             AUTHORIZATION,
-            HeaderValue::from_str(&auth_value)
-                .context("Failed to create authorization header")?,
+            HeaderValue::from_str(&auth_value).context("Failed to create authorization header")?,
         );
         Ok(headers)
     }
@@ -150,7 +148,7 @@ impl DropboxClient {
 
     pub async fn download_file(&self, path: &str) -> Result<Vec<u8>> {
         let url = "https://content.dropboxapi.com/2/files/download";
-        
+
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
@@ -161,7 +159,7 @@ impl DropboxClient {
         let dropbox_api_arg = serde_json::to_string(&DownloadRequest {
             path: path.to_string(),
         })?;
-        
+
         headers.insert(
             "Dropbox-API-Arg",
             HeaderValue::from_str(&dropbox_api_arg)
@@ -203,7 +201,7 @@ impl DropboxClient {
     #[allow(dead_code)]
     pub async fn upload_file(&self, path: &str, content: &str) -> Result<FileMetadata> {
         let url = "https://content.dropboxapi.com/2/files/upload";
-        
+
         let mut headers = HeaderMap::new();
         headers.insert(
             AUTHORIZATION,
@@ -403,10 +401,10 @@ mod tests {
     fn test_create_headers() {
         let client = DropboxClient::new("test_token".to_string());
         let headers = client.create_headers().unwrap();
-        
+
         assert!(headers.contains_key(AUTHORIZATION));
         assert!(headers.contains_key(CONTENT_TYPE));
-        
+
         let auth_header = headers.get(AUTHORIZATION).unwrap().to_str().unwrap();
         assert_eq!(auth_header, "Bearer test_token");
     }
