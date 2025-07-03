@@ -3,14 +3,14 @@ use tokio;
 use tracing::{info, Level};
 use tracing_subscriber;
 
-use tobelog::services::template::{TemplateService, HomePageContext, PostPageContext, PostSummary, PostData};
+use tobelog::services::template::{
+    HomePageContext, PostData, PostPageContext, PostSummary, TemplateService,
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("🎨 Testing Template Engine and Responsive Design...");
 
@@ -31,7 +31,10 @@ async fn test_template_service() -> Result<()> {
     info!("✅ Template service initialized successfully");
 
     // Test that templates directory exists and templates are loaded
-    let available_templates = template_service.tera().get_template_names().collect::<Vec<_>>();
+    let available_templates = template_service
+        .tera()
+        .get_template_names()
+        .collect::<Vec<_>>();
     info!("📋 Available templates: {:?}", available_templates);
 
     // Verify expected templates exist
@@ -89,14 +92,26 @@ async fn test_template_rendering() -> Result<()> {
     };
 
     let home_html = template_service.render("index.html", &home_context)?;
-    info!("✅ Home page template rendered: {} characters", home_html.len());
+    info!(
+        "✅ Home page template rendered: {} characters",
+        home_html.len()
+    );
 
     // Verify key elements are present
-    anyhow::ensure!(home_html.contains("Test Blog"), "Site title not rendered correctly");
+    anyhow::ensure!(
+        home_html.contains("Test Blog"),
+        "Site title not rendered correctly"
+    );
     info!("✅ Site title rendered correctly");
-    anyhow::ensure!(home_html.contains("Sample Post 1"), "Post titles not rendered correctly");
+    anyhow::ensure!(
+        home_html.contains("Sample Post 1"),
+        "Post titles not rendered correctly"
+    );
     info!("✅ Post titles rendered correctly");
-    anyhow::ensure!(home_html.contains("TailwindCSS"), "TailwindCSS not included");
+    anyhow::ensure!(
+        home_html.contains("TailwindCSS"),
+        "TailwindCSS not included"
+    );
     info!("✅ TailwindCSS included");
     anyhow::ensure!(home_html.contains("dark:"), "Dark mode classes not present");
     info!("✅ Dark mode classes present");
@@ -125,14 +140,26 @@ async fn test_template_rendering() -> Result<()> {
     };
 
     let post_html = template_service.render("post.html", &post_context)?;
-    info!("✅ Post page template rendered: {} characters", post_html.len());
+    info!(
+        "✅ Post page template rendered: {} characters",
+        post_html.len()
+    );
 
     // Verify key elements are present
-    anyhow::ensure!(post_html.contains("Test Post Title"), "Post title not rendered correctly");
+    anyhow::ensure!(
+        post_html.contains("Test Post Title"),
+        "Post title not rendered correctly"
+    );
     info!("✅ Post title rendered correctly");
-    anyhow::ensure!(post_html.contains("<h1>Test Content</h1>"), "HTML content not rendered correctly");
+    anyhow::ensure!(
+        post_html.contains("<h1>Test Content</h1>"),
+        "HTML content not rendered correctly"
+    );
     info!("✅ HTML content rendered correctly");
-    anyhow::ensure!(post_html.contains("prose"), "Prose styling classes not present");
+    anyhow::ensure!(
+        post_html.contains("prose"),
+        "Prose styling classes not present"
+    );
     info!("✅ Prose styling classes present");
 
     info!("🎨 Template rendering tests completed successfully");

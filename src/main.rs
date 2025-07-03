@@ -1,9 +1,9 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    middleware::{from_fn_with_state, from_fn},
+    middleware::{from_fn, from_fn_with_state},
     response::Json,
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Router,
 };
 use serde_json::{json, Value};
@@ -19,8 +19,11 @@ mod middleware;
 mod models;
 mod services;
 
-use handlers::{posts, api, admin, version, theme, performance};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService, VersionService, ThemeService, CacheService};
+use handlers::{admin, api, performance, posts, theme, version};
+use services::{
+    BlogStorageService, CacheService, DatabaseService, DropboxClient, LLMImportService,
+    MarkdownService, MediaService, TemplateService, ThemeService, VersionService,
+};
 
 #[derive(Clone)]
 struct AppState {
@@ -34,9 +37,7 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
@@ -104,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
                     info!("✅ Connected to Dropbox account: {}", display_name);
                 }
             }
-            
+
             // Initialize blog folder structure
             if let Err(e) = blog_storage.initialize_blog_structure().await {
                 warn!("⚠️  Failed to initialize blog structure: {}", e);
@@ -155,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
         theme_service: (*theme_service).clone(),
         database: (*database).clone(),
     };
-    
+
     // Create separate routers for each state type
     let web_pages_router = Router::new()
         .route("/", get(posts::home_page))
@@ -188,7 +189,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/sync/dropbox", post(api::sync_dropbox_api))
         .route("/api/import/markdown", post(api::import_markdown_api))
         .with_state(api_state.clone())
-        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+        .layer(from_fn_with_state(
+            config.clone(),
+            crate::middleware::auth_middleware,
+        ));
 
     let admin_router = Router::new()
         .route("/admin", get(admin::dashboard))
@@ -196,19 +200,40 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/new", get(admin::new_post_form))
         .route("/admin/edit/:slug", get(admin::edit_post_form))
         // LLM import admin routes
-        .route("/admin/import", get(admin::admin_import_page).post(admin::admin_process_import))
+        .route(
+            "/admin/import",
+            get(admin::admin_import_page).post(admin::admin_process_import),
+        )
         .route("/admin/posts/:slug/edit", get(admin::admin_edit_post_page))
         .with_state(admin_state);
 
     let version_router = Router::new()
         // Version management API endpoints (auth required)
-        .route("/api/posts/:slug/versions", get(version::get_version_history))
-        .route("/api/posts/:slug/versions/:version", get(version::get_post_version))
-        .route("/api/posts/:slug/diff/:version_from/:version_to", get(version::compare_versions))
-        .route("/api/posts/:slug/restore/:version", post(version::restore_version))
-        .route("/api/posts/:slug/versions/cleanup", post(version::cleanup_old_versions))
+        .route(
+            "/api/posts/:slug/versions",
+            get(version::get_version_history),
+        )
+        .route(
+            "/api/posts/:slug/versions/:version",
+            get(version::get_post_version),
+        )
+        .route(
+            "/api/posts/:slug/diff/:version_from/:version_to",
+            get(version::compare_versions),
+        )
+        .route(
+            "/api/posts/:slug/restore/:version",
+            post(version::restore_version),
+        )
+        .route(
+            "/api/posts/:slug/versions/cleanup",
+            post(version::cleanup_old_versions),
+        )
         .with_state(version_state)
-        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+        .layer(from_fn_with_state(
+            config.clone(),
+            crate::middleware::auth_middleware,
+        ));
 
     let theme_router = Router::new()
         // Theme management API endpoints (auth required)
@@ -227,7 +252,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/site/config", get(theme::get_site_config))
         .route("/api/site/config", put(theme::update_site_config))
         .with_state(theme_state)
-        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+        .layer(from_fn_with_state(
+            config.clone(),
+            crate::middleware::auth_middleware,
+        ));
 
     // Performance monitoring router
     let performance_state = performance::PerformanceState {
@@ -236,11 +264,23 @@ async fn main() -> anyhow::Result<()> {
 
     let performance_router = Router::new()
         // Performance monitoring endpoints (auth required)
-        .route("/api/performance/metrics", get(performance::get_performance_metrics))
-        .route("/api/performance/cache/clear", post(performance::clear_cache))
-        .route("/api/performance/health", get(performance::performance_health_check))
+        .route(
+            "/api/performance/metrics",
+            get(performance::get_performance_metrics),
+        )
+        .route(
+            "/api/performance/cache/clear",
+            post(performance::clear_cache),
+        )
+        .route(
+            "/api/performance/health",
+            get(performance::performance_health_check),
+        )
         .with_state(performance_state)
-        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+        .layer(from_fn_with_state(
+            config.clone(),
+            crate::middleware::auth_middleware,
+        ));
 
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
@@ -268,7 +308,9 @@ async fn main() -> anyhow::Result<()> {
         // Performance and caching middleware
         // TODO: Re-enable performance tracking middleware after fixing signature
         // .layer(from_fn_with_state(cache_service.clone(), crate::middleware::performance::performance_tracking_middleware))
-        .layer(from_fn(crate::middleware::performance::cache_headers_middleware))
+        .layer(from_fn(
+            crate::middleware::performance::cache_headers_middleware,
+        ))
         // CORS middleware
         .layer(ServiceBuilder::new().layer(CorsLayer::permissive())); // TODO: Configure restrictive CORS policy for production
 
@@ -329,11 +371,12 @@ async fn list_posts_handler(State(state): State<AppState>) -> Result<Json<Value>
     }
 }
 
-async fn get_post_handler(Path(slug): Path<String>, State(state): State<AppState>) -> Result<Json<Value>, StatusCode> {
+async fn get_post_handler(
+    Path(slug): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<Value>, StatusCode> {
     match state.blog_storage.get_post_by_slug(&slug).await {
-        Ok(Some(post)) => {
-            Ok(Json(serde_json::to_value(post).unwrap()))
-        }
+        Ok(Some(post)) => Ok(Json(serde_json::to_value(post).unwrap())),
         Ok(None) => {
             let response = json!({
                 "error": format!("Post with slug '{}' not found", slug)

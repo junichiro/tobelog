@@ -138,9 +138,9 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            post_ttl: Duration::from_secs(600), // 10 minutes
+            post_ttl: Duration::from_secs(600),      // 10 minutes
             post_list_ttl: Duration::from_secs(300), // 5 minutes
-            stats_ttl: Duration::from_secs(900), // 15 minutes
+            stats_ttl: Duration::from_secs(900),     // 15 minutes
             max_posts: 1000,
             max_lists: 50,
             cleanup_interval: Duration::from_secs(300), // 5 minutes
@@ -189,7 +189,7 @@ impl CacheService {
                 debug!("Cache expired for post: {}", slug);
             }
         }
-        
+
         debug!("Cache miss for post: {}", slug);
         self.record_cache_miss().await;
         None
@@ -198,17 +198,17 @@ impl CacheService {
     /// Cache a post with TTL
     pub async fn set_post(&self, slug: &str, post: Post) -> Result<()> {
         self.cleanup_if_needed().await;
-        
+
         let mut posts = self.posts.write().await;
-        
+
         // Check if we're at capacity and need to evict
         if posts.len() >= self.config.max_posts && !posts.contains_key(slug) {
             self.evict_oldest_posts(&mut posts).await;
         }
-        
+
         let cached_post = CachedPost::new(post, self.config.post_ttl);
         posts.insert(slug.to_string(), cached_post);
-        
+
         debug!("Cached post: {}", slug);
         Ok(())
     }
@@ -225,26 +225,31 @@ impl CacheService {
                 debug!("Cache expired for post list: {}", cache_key);
             }
         }
-        
+
         debug!("Cache miss for post list: {}", cache_key);
         self.record_cache_miss().await;
         None
     }
 
     /// Cache a post list with TTL
-    pub async fn set_post_list(&self, cache_key: &str, posts: Vec<PostSummary>, total_count: usize) -> Result<()> {
+    pub async fn set_post_list(
+        &self,
+        cache_key: &str,
+        posts: Vec<PostSummary>,
+        total_count: usize,
+    ) -> Result<()> {
         self.cleanup_if_needed().await;
-        
+
         let mut post_lists = self.post_lists.write().await;
-        
+
         // Check if we're at capacity and need to evict
         if post_lists.len() >= self.config.max_lists && !post_lists.contains_key(cache_key) {
             self.evict_oldest_lists(&mut post_lists).await;
         }
-        
+
         let cached_list = CachedPostList::new(posts, total_count, self.config.post_list_ttl);
         post_lists.insert(cache_key.to_string(), cached_list);
-        
+
         debug!("Cached post list: {}", cache_key);
         Ok(())
     }
@@ -261,7 +266,7 @@ impl CacheService {
                 debug!("Cache expired for blog stats");
             }
         }
-        
+
         debug!("Cache miss for blog stats");
         self.record_cache_miss().await;
         None
@@ -286,7 +291,7 @@ impl CacheService {
             self.config.stats_ttl,
         );
         *stats = Some(cached_stats);
-        
+
         debug!("Cached blog stats");
         Ok(())
     }
@@ -305,7 +310,7 @@ impl CacheService {
             let mut stats = self.stats.write().await;
             *stats = None;
         }
-        
+
         info!("Invalidated all cache entries");
         Ok(())
     }
@@ -316,19 +321,19 @@ impl CacheService {
             let mut posts = self.posts.write().await;
             posts.remove(slug);
         }
-        
+
         // Invalidate all post lists since they might contain this post
         {
             let mut post_lists = self.post_lists.write().await;
             post_lists.clear();
         }
-        
+
         // Invalidate stats as they might be affected
         {
             let mut stats = self.stats.write().await;
             *stats = None;
         }
-        
+
         debug!("Invalidated cache for post: {}", slug);
         Ok(())
     }
@@ -344,7 +349,7 @@ impl CacheService {
         per_page: Option<usize>,
     ) -> String {
         let mut key_parts = Vec::new();
-        
+
         if let Some(cat) = category {
             key_parts.push(format!("cat:{}", cat));
         }
@@ -363,7 +368,7 @@ impl CacheService {
         if let Some(pp) = per_page {
             key_parts.push(format!("per_page:{}", pp));
         }
-        
+
         if key_parts.is_empty() {
             "all_posts".to_string()
         } else {
@@ -384,12 +389,13 @@ impl CacheService {
     {
         let mut metrics = self.metrics.write().await;
         updater(&mut *metrics);
-        
+
         // Recalculate cache hit rate
         if metrics.total_requests > 0 {
-            metrics.cache_hit_rate = (metrics.cache_hits as f64 / metrics.total_requests as f64) * 100.0;
+            metrics.cache_hit_rate =
+                (metrics.cache_hits as f64 / metrics.total_requests as f64) * 100.0;
         }
-        
+
         Ok(())
     }
 
@@ -398,9 +404,10 @@ impl CacheService {
         let mut metrics = self.metrics.write().await;
         metrics.cache_hits += 1;
         metrics.total_requests += 1;
-        
+
         if metrics.total_requests > 0 {
-            metrics.cache_hit_rate = (metrics.cache_hits as f64 / metrics.total_requests as f64) * 100.0;
+            metrics.cache_hit_rate =
+                (metrics.cache_hits as f64 / metrics.total_requests as f64) * 100.0;
         }
     }
 
@@ -409,9 +416,10 @@ impl CacheService {
         let mut metrics = self.metrics.write().await;
         metrics.cache_misses += 1;
         metrics.total_requests += 1;
-        
+
         if metrics.total_requests > 0 {
-            metrics.cache_hit_rate = (metrics.cache_hits as f64 / metrics.total_requests as f64) * 100.0;
+            metrics.cache_hit_rate =
+                (metrics.cache_hits as f64 / metrics.total_requests as f64) * 100.0;
         }
     }
 
@@ -427,7 +435,7 @@ impl CacheService {
     /// Clean up expired cache entries
     async fn cleanup_expired(&self) {
         let mut removed_count = 0;
-        
+
         // Clean up expired posts
         {
             let mut posts = self.posts.write().await;
@@ -435,7 +443,7 @@ impl CacheService {
             posts.retain(|_, cached_post| !cached_post.is_expired());
             removed_count += original_len - posts.len();
         }
-        
+
         // Clean up expired post lists
         {
             let mut post_lists = self.post_lists.write().await;
@@ -443,7 +451,7 @@ impl CacheService {
             post_lists.retain(|_, cached_list| !cached_list.is_expired());
             removed_count += original_len - post_lists.len();
         }
-        
+
         // Clean up expired stats
         {
             let mut stats = self.stats.write().await;
@@ -454,7 +462,7 @@ impl CacheService {
                 }
             }
         }
-        
+
         if removed_count > 0 {
             debug!("Cleaned up {} expired cache entries", removed_count);
         }
@@ -463,52 +471,55 @@ impl CacheService {
     /// Evict oldest posts when at capacity
     async fn evict_oldest_posts(&self, posts: &mut HashMap<String, CachedPost>) {
         let evict_count = posts.len() / 4; // Evict 25% when at capacity
-        
+
         let mut post_ages: Vec<(String, Instant)> = posts
             .iter()
             .map(|(slug, cached_post)| (slug.clone(), cached_post.cached_at))
             .collect();
-        
+
         post_ages.sort_by(|a, b| a.1.cmp(&b.1)); // Sort by cache time (oldest first)
-        
+
         for (slug, _) in post_ages.into_iter().take(evict_count) {
             posts.remove(&slug);
         }
-        
+
         debug!("Evicted {} old posts from cache", evict_count);
     }
 
     /// Evict oldest post lists when at capacity
     async fn evict_oldest_lists(&self, post_lists: &mut HashMap<String, CachedPostList>) {
         let evict_count = post_lists.len() / 4; // Evict 25% when at capacity
-        
+
         let mut list_ages: Vec<(String, Instant)> = post_lists
             .iter()
             .map(|(key, cached_list)| (key.clone(), cached_list.cached_at))
             .collect();
-        
+
         list_ages.sort_by(|a, b| a.1.cmp(&b.1)); // Sort by cache time (oldest first)
-        
+
         for (key, _) in list_ages.into_iter().take(evict_count) {
             post_lists.remove(&key);
         }
-        
+
         debug!("Evicted {} old post lists from cache", evict_count);
     }
 
     /// Get cache statistics for monitoring
     pub async fn get_cache_stats(&self) -> HashMap<String, usize> {
         let mut stats = HashMap::new();
-        
+
         let posts = self.posts.read().await;
         stats.insert("cached_posts".to_string(), posts.len());
-        
+
         let post_lists = self.post_lists.read().await;
         stats.insert("cached_lists".to_string(), post_lists.len());
-        
+
         let blog_stats = self.stats.read().await;
-        stats.insert("cached_stats".to_string(), if blog_stats.is_some() { 1 } else { 0 });
-        
+        stats.insert(
+            "cached_stats".to_string(),
+            if blog_stats.is_some() { 1 } else { 0 },
+        );
+
         stats
     }
 }
@@ -589,34 +600,37 @@ mod tests {
     #[tokio::test]
     async fn test_cache_key_generation() {
         let cache = CacheService::new();
-        
+
         let key1 = cache.generate_list_cache_key(None, None, None, None, None, None);
         assert_eq!(key1, "all_posts");
-        
+
         let key2 = cache.generate_list_cache_key(
             Some("tech"),
             Some("rust"),
             Some(true),
             Some(false),
             Some(1),
-            Some(10)
+            Some(10),
         );
-        assert_eq!(key2, "cat:tech:tag:rust:pub:true:feat:false:page:1:per_page:10");
+        assert_eq!(
+            key2,
+            "cat:tech:tag:rust:pub:true:feat:false:page:1:per_page:10"
+        );
     }
 
     #[tokio::test]
     async fn test_metrics_tracking() {
         let cache = CacheService::new();
-        
+
         // Initial metrics
         let metrics = cache.get_metrics().await;
         assert_eq!(metrics.total_requests, 0);
         assert_eq!(metrics.cache_hits, 0);
         assert_eq!(metrics.cache_misses, 0);
-        
+
         // Generate cache miss
         cache.get_post("nonexistent").await;
-        
+
         let metrics = cache.get_metrics().await;
         assert_eq!(metrics.total_requests, 1);
         assert_eq!(metrics.cache_hits, 0);

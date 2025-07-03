@@ -1,14 +1,13 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use sqlx::sqlite::SqliteRow;
+use sqlx::{Pool, Row, Sqlite, SqlitePool};
 use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::models::{
-    Post, CreatePost, UpdatePost, PostFilters, PostStats, CategoryStat, MediaFile, MediaFilters,
-    ThemeSettings, UpdateThemeRequest, ThemeFilters, SiteConfig,
-    HeaderStyle, FooterStyle, SocialLink
+    CategoryStat, CreatePost, FooterStyle, HeaderStyle, MediaFile, MediaFilters, Post, PostFilters,
+    PostStats, SiteConfig, SocialLink, ThemeFilters, ThemeSettings, UpdatePost, UpdateThemeRequest,
 };
 
 #[derive(sqlx::FromRow)]
@@ -38,14 +37,14 @@ impl DatabaseService {
     /// Create a new database service with connection pool
     pub async fn new(database_url: &str) -> Result<Self> {
         info!("Connecting to database: {}", database_url);
-        
+
         let pool = SqlitePool::connect(database_url)
             .await
             .context("Failed to connect to database")?;
 
         let service = Self { pool };
         service.run_migrations().await?;
-        
+
         Ok(service)
     }
 
@@ -105,7 +104,7 @@ impl DatabaseService {
         debug!("Creating new post: {}", data.slug);
 
         let post = Post::new(data);
-        
+
         sqlx::query(
             r#"
             INSERT INTO posts (
@@ -142,13 +141,11 @@ impl DatabaseService {
     pub async fn get_post_by_slug(&self, slug: &str) -> Result<Option<Post>> {
         debug!("Getting post by slug: {}", slug);
 
-        let row = sqlx::query(
-            "SELECT * FROM posts WHERE slug = ? LIMIT 1"
-        )
-        .bind(slug)
-        .fetch_optional(&self.pool)
-        .await
-        .context("Failed to get post by slug")?;
+        let row = sqlx::query("SELECT * FROM posts WHERE slug = ? LIMIT 1")
+            .bind(slug)
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to get post by slug")?;
 
         if let Some(row) = row {
             let post = self.row_to_post(&row)?;
@@ -163,13 +160,11 @@ impl DatabaseService {
     pub async fn get_post_by_id(&self, id: Uuid) -> Result<Option<Post>> {
         debug!("Getting post by ID: {}", id);
 
-        let row = sqlx::query(
-            "SELECT * FROM posts WHERE id = ? LIMIT 1"
-        )
-        .bind(id.to_string())
-        .fetch_optional(&self.pool)
-        .await
-        .context("Failed to get post by ID")?;
+        let row = sqlx::query("SELECT * FROM posts WHERE id = ? LIMIT 1")
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to get post by ID")?;
 
         if let Some(row) = row {
             let post = self.row_to_post(&row)?;
@@ -198,7 +193,7 @@ impl DatabaseService {
                 published = ?, featured = ?, author = ?, dropbox_path = ?, version = ?,
                 updated_at = ?, published_at = ?
             WHERE id = ?
-            "#
+            "#,
         )
         .bind(&post.title)
         .bind(&post.content)
@@ -351,17 +346,19 @@ impl DatabaseService {
             .await
             .context("Failed to get total posts count")?;
 
-        let published_posts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE published = true")
-            .fetch_one(&self.pool)
-            .await
-            .context("Failed to get published posts count")?;
+        let published_posts: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE published = true")
+                .fetch_one(&self.pool)
+                .await
+                .context("Failed to get published posts count")?;
 
         let draft_posts = total_posts - published_posts;
 
-        let featured_posts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE featured = true")
-            .fetch_one(&self.pool)
-            .await
-            .context("Failed to get featured posts count")?;
+        let featured_posts: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE featured = true")
+                .fetch_one(&self.pool)
+                .await
+                .context("Failed to get featured posts count")?;
 
         // Get category statistics
         let category_rows = sqlx::query(
@@ -371,7 +368,7 @@ impl DatabaseService {
             WHERE category IS NOT NULL AND published = true
             GROUP BY category
             ORDER BY count DESC
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await
@@ -627,13 +624,11 @@ impl DatabaseService {
     pub async fn get_media_file(&self, id: Uuid) -> Result<Option<MediaFile>> {
         debug!("Getting media file by ID: {}", id);
 
-        let row = sqlx::query_as::<_, MediaFileRow>(
-            "SELECT * FROM media_files WHERE id = ?"
-        )
-        .bind(id.to_string())
-        .fetch_optional(&self.pool)
-        .await
-        .context("Failed to fetch media file")?;
+        let row = sqlx::query_as::<_, MediaFileRow>("SELECT * FROM media_files WHERE id = ?")
+            .bind(id.to_string())
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to fetch media file")?;
 
         match row {
             Some(row) => {
@@ -664,13 +659,11 @@ impl DatabaseService {
     pub async fn delete_media_file(&self, id: Uuid) -> Result<bool> {
         debug!("Deleting media file by ID: {}", id);
 
-        let result = sqlx::query(
-            "DELETE FROM media_files WHERE id = ?"
-        )
-        .bind(id.to_string())
-        .execute(&self.pool)
-        .await
-        .context("Failed to delete media file")?;
+        let result = sqlx::query("DELETE FROM media_files WHERE id = ?")
+            .bind(id.to_string())
+            .execute(&self.pool)
+            .await
+            .context("Failed to delete media file")?;
 
         let deleted = result.rows_affected() > 0;
         if deleted {
@@ -686,14 +679,12 @@ impl DatabaseService {
     pub async fn associate_media_with_post(&self, post_id: Uuid, media_id: Uuid) -> Result<()> {
         debug!("Associating media {} with post {}", media_id, post_id);
 
-        sqlx::query(
-            "INSERT OR IGNORE INTO posts_media (post_id, media_id) VALUES (?, ?)"
-        )
-        .bind(post_id.to_string())
-        .bind(media_id.to_string())
-        .execute(&self.pool)
-        .await
-        .context("Failed to associate media with post")?;
+        sqlx::query("INSERT OR IGNORE INTO posts_media (post_id, media_id) VALUES (?, ?)")
+            .bind(post_id.to_string())
+            .bind(media_id.to_string())
+            .execute(&self.pool)
+            .await
+            .context("Failed to associate media with post")?;
 
         Ok(())
     }
@@ -766,8 +757,14 @@ impl DatabaseService {
     // Version management methods
 
     /// Create a new post version record
-    pub async fn create_post_version(&self, version: &crate::models::CreatePostVersion) -> Result<crate::models::PostVersion> {
-        debug!("Creating post version {} for post {}", version.version, version.post_id);
+    pub async fn create_post_version(
+        &self,
+        version: &crate::models::CreatePostVersion,
+    ) -> Result<crate::models::PostVersion> {
+        debug!(
+            "Creating post version {} for post {}",
+            version.version, version.post_id
+        );
 
         let now = Utc::now();
         let version_id = sqlx::query(
@@ -776,7 +773,7 @@ impl DatabaseService {
                 post_id, version, title, content, html_content, excerpt, category, tags,
                 metadata, change_summary, created_at, created_by
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(version.post_id.to_string())
         .bind(version.version)
@@ -786,7 +783,12 @@ impl DatabaseService {
         .bind(&version.excerpt)
         .bind(&version.category)
         .bind(serde_json::to_string(&version.tags).unwrap_or_else(|_| "[]".to_string()))
-        .bind(version.metadata.as_ref().map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".to_string())))
+        .bind(
+            version
+                .metadata
+                .as_ref()
+                .map(|m| serde_json::to_string(m).unwrap_or_else(|_| "{}".to_string())),
+        )
         .bind(&version.change_summary)
         .bind(now.to_rfc3339())
         .bind(&version.created_by)
@@ -814,17 +816,20 @@ impl DatabaseService {
     }
 
     /// Get a specific version of a post
-    pub async fn get_post_version(&self, post_id: uuid::Uuid, version: i32) -> Result<Option<crate::models::PostVersion>> {
+    pub async fn get_post_version(
+        &self,
+        post_id: uuid::Uuid,
+        version: i32,
+    ) -> Result<Option<crate::models::PostVersion>> {
         debug!("Getting version {} for post {}", version, post_id);
 
-        let row = sqlx::query(
-            "SELECT * FROM post_versions WHERE post_id = ? AND version = ? LIMIT 1"
-        )
-        .bind(post_id.to_string())
-        .bind(version)
-        .fetch_optional(&self.pool)
-        .await
-        .context("Failed to get post version")?;
+        let row =
+            sqlx::query("SELECT * FROM post_versions WHERE post_id = ? AND version = ? LIMIT 1")
+                .bind(post_id.to_string())
+                .bind(version)
+                .fetch_optional(&self.pool)
+                .await
+                .context("Failed to get post version")?;
 
         if let Some(row) = row {
             let version = self.row_to_post_version(&row)?;
@@ -835,7 +840,10 @@ impl DatabaseService {
     }
 
     /// List post versions with filters
-    pub async fn list_post_versions(&self, filters: crate::models::VersionFilters) -> Result<Vec<crate::models::PostVersion>> {
+    pub async fn list_post_versions(
+        &self,
+        filters: crate::models::VersionFilters,
+    ) -> Result<Vec<crate::models::PostVersion>> {
         debug!("Listing post versions with filters: {:?}", filters);
 
         let mut query = "SELECT * FROM post_versions WHERE 1=1".to_string();
@@ -876,8 +884,15 @@ impl DatabaseService {
     }
 
     /// Delete old versions, keeping only the most recent N versions
-    pub async fn cleanup_old_versions(&self, post_id: uuid::Uuid, keep_versions: i32) -> Result<usize> {
-        debug!("Cleaning up old versions for post {}, keeping {} versions", post_id, keep_versions);
+    pub async fn cleanup_old_versions(
+        &self,
+        post_id: uuid::Uuid,
+        keep_versions: i32,
+    ) -> Result<usize> {
+        debug!(
+            "Cleaning up old versions for post {}, keeping {} versions",
+            post_id, keep_versions
+        );
 
         let result = sqlx::query(
             r#"
@@ -889,7 +904,7 @@ impl DatabaseService {
                 ORDER BY version DESC 
                 LIMIT ?
             )
-            "#
+            "#,
         )
         .bind(post_id.to_string())
         .bind(post_id.to_string())
@@ -904,18 +919,20 @@ impl DatabaseService {
     }
 
     /// Helper method to convert SqliteRow to PostVersion
-    fn row_to_post_version(&self, row: &sqlx::sqlite::SqliteRow) -> Result<crate::models::PostVersion> {
+    fn row_to_post_version(
+        &self,
+        row: &sqlx::sqlite::SqliteRow,
+    ) -> Result<crate::models::PostVersion> {
         let tags_json: String = row.try_get("tags")?;
-        let tags: Vec<String> = serde_json::from_str(&tags_json)
-            .unwrap_or_else(|_| Vec::new());
+        let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_else(|_| Vec::new());
 
         let metadata_json: Option<String> = row.try_get("metadata")?;
-        let metadata = metadata_json
-            .and_then(|json| serde_json::from_str(&json).ok());
+        let metadata = metadata_json.and_then(|json| serde_json::from_str(&json).ok());
 
         Ok(crate::models::PostVersion {
             id: row.try_get("id")?,
-            post_id: uuid::Uuid::parse_str(row.try_get("post_id")?).context("Invalid UUID in database")?,
+            post_id: uuid::Uuid::parse_str(row.try_get("post_id")?)
+                .context("Invalid UUID in database")?,
             version: row.try_get("version")?,
             title: row.try_get("title")?,
             content: row.try_get("content")?,
@@ -950,7 +967,7 @@ impl DatabaseService {
                 font_family, heading_font, font_size_base, layout, dark_mode_enabled,
                 custom_css, header_style, footer_style, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(&theme.name)
         .bind(&theme.display_name)
@@ -1021,7 +1038,11 @@ impl DatabaseService {
     }
 
     /// Update theme
-    pub async fn update_theme(&self, name: &str, request: UpdateThemeRequest) -> Result<Option<ThemeSettings>> {
+    pub async fn update_theme(
+        &self,
+        name: &str,
+        request: UpdateThemeRequest,
+    ) -> Result<Option<ThemeSettings>> {
         debug!("Updating theme: {}", name);
 
         // Get existing theme first
@@ -1031,21 +1052,31 @@ impl DatabaseService {
         };
 
         let now = Utc::now();
-        
+
         // Apply updates to existing theme
         let updated_theme = ThemeSettings {
             display_name: request.display_name.unwrap_or(existing_theme.display_name),
             description: request.description.or(existing_theme.description),
-            primary_color: request.primary_color.unwrap_or(existing_theme.primary_color),
-            secondary_color: request.secondary_color.unwrap_or(existing_theme.secondary_color),
-            background_color: request.background_color.unwrap_or(existing_theme.background_color),
+            primary_color: request
+                .primary_color
+                .unwrap_or(existing_theme.primary_color),
+            secondary_color: request
+                .secondary_color
+                .unwrap_or(existing_theme.secondary_color),
+            background_color: request
+                .background_color
+                .unwrap_or(existing_theme.background_color),
             text_color: request.text_color.unwrap_or(existing_theme.text_color),
             accent_color: request.accent_color.unwrap_or(existing_theme.accent_color),
             font_family: request.font_family.unwrap_or(existing_theme.font_family),
             heading_font: request.heading_font.or(existing_theme.heading_font),
-            font_size_base: request.font_size_base.unwrap_or(existing_theme.font_size_base),
+            font_size_base: request
+                .font_size_base
+                .unwrap_or(existing_theme.font_size_base),
             layout: request.layout.unwrap_or(existing_theme.layout),
-            dark_mode_enabled: request.dark_mode_enabled.unwrap_or(existing_theme.dark_mode_enabled),
+            dark_mode_enabled: request
+                .dark_mode_enabled
+                .unwrap_or(existing_theme.dark_mode_enabled),
             custom_css: request.custom_css.or(existing_theme.custom_css),
             header_style: request.header_style.unwrap_or(existing_theme.header_style),
             footer_style: request.footer_style.unwrap_or(existing_theme.footer_style),
@@ -1064,7 +1095,7 @@ impl DatabaseService {
                 heading_font = ?, font_size_base = ?, layout = ?, dark_mode_enabled = ?,
                 custom_css = ?, header_style = ?, footer_style = ?, updated_at = ?
             WHERE name = ?
-            "#
+            "#,
         )
         .bind(&updated_theme.display_name)
         .bind(&updated_theme.description)
@@ -1228,10 +1259,12 @@ impl DatabaseService {
             footer_style,
             created_at: DateTime::parse_from_rfc3339(row.try_get("created_at")?)
                 .context("Invalid created_at timestamp")?
-                .with_timezone(&Utc).into(),
+                .with_timezone(&Utc)
+                .into(),
             updated_at: DateTime::parse_from_rfc3339(row.try_get("updated_at")?)
                 .context("Invalid updated_at timestamp")?
-                .with_timezone(&Utc).into(),
+                .with_timezone(&Utc)
+                .into(),
         })
     }
 
@@ -1270,7 +1303,7 @@ impl DatabaseService {
                 social_links, google_analytics_id, google_fonts,
                 created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(&config.site_title)
         .bind(&config.site_description)
@@ -1314,7 +1347,7 @@ impl DatabaseService {
                 social_links = ?, google_analytics_id = ?, google_fonts = ?,
                 updated_at = ?
             WHERE id = (SELECT MIN(id) FROM site_config)
-            "#
+            "#,
         )
         .bind(&config.site_title)
         .bind(&config.site_description)
@@ -1359,10 +1392,12 @@ impl DatabaseService {
             google_fonts,
             created_at: DateTime::parse_from_rfc3339(row.try_get("created_at")?)
                 .context("Invalid created_at timestamp")?
-                .with_timezone(&Utc).into(),
+                .with_timezone(&Utc)
+                .into(),
             updated_at: DateTime::parse_from_rfc3339(row.try_get("updated_at")?)
                 .context("Invalid updated_at timestamp")?
-                .with_timezone(&Utc).into(),
+                .with_timezone(&Utc)
+                .into(),
         })
     }
 }

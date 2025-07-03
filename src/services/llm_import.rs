@@ -3,11 +3,10 @@ use regex::Regex;
 use tracing::{debug, warn};
 
 use crate::models::{
+    BatchImportRequest, BatchImportResponse, CreatePost, ImportError, ImportSummary,
     LLMArticleImportRequest, LLMArticleImportResponse, LLMSuggestedMetadata,
-    BatchImportRequest, BatchImportResponse, ImportError, ImportSummary,
-    CreatePost
 };
-use crate::services::{MarkdownService, DatabaseService};
+use crate::services::{DatabaseService, MarkdownService};
 
 /// LLM記事インポート処理サービス
 #[derive(Clone)]
@@ -33,26 +32,27 @@ impl LLMImportService {
 
         // 1. タイトルの自動抽出
         let title = self.extract_title(&request.content, request.suggested_title.as_deref())?;
-        
+
         // 2. コンテンツの構造化処理
         let formatted_content = self.structure_content(&request.content)?;
-        
+
         // 3. HTMLに変換
         let html_content = self.markdown_service.markdown_to_html(&formatted_content)?;
-        
+
         // 4. 抜粋の生成
         let excerpt = self.generate_excerpt(&formatted_content);
-        
+
         // 5. スラグの生成
         let slug = self.generate_slug(&title).await?;
-        
+
         // 6. カテゴリ・タグの提案
-        let suggested_category = self.suggest_category(&request.content, request.category_hint.as_deref());
+        let suggested_category =
+            self.suggest_category(&request.content, request.category_hint.as_deref());
         let suggested_tags = self.suggest_tags(&request.content, request.tags_hint.as_ref());
-        
+
         // 7. Dropboxパスの生成
         let dropbox_path = self.generate_dropbox_path(&slug);
-        
+
         // 8. メタデータの構築
         let suggested_metadata = LLMSuggestedMetadata {
             title: title.clone(),
@@ -77,10 +77,7 @@ impl LLMImportService {
     }
 
     /// バッチインポート処理
-    pub async fn process_batch_import(
-        &self,
-        request: BatchImportRequest,
-    ) -> BatchImportResponse {
+    pub async fn process_batch_import(&self, request: BatchImportRequest) -> BatchImportResponse {
         let total_attempted = request.articles.len();
         let mut successful = Vec::new();
         let mut failed = Vec::new();
@@ -88,7 +85,7 @@ impl LLMImportService {
 
         for article in request.articles {
             let content_preview = article.content.chars().take(100).collect::<String>();
-            
+
             // 重複チェック
             if self.check_duplicate_content(&article.content).await {
                 duplicates_detected += 1;
@@ -232,7 +229,7 @@ impl LLMImportService {
     fn format_heading(&self, heading: &str) -> String {
         let level = heading.chars().take_while(|&c| c == '#').count();
         let title = heading.trim_start_matches('#').trim();
-        
+
         // 適切なレベルに調整（最大H3まで）
         let adjusted_level = level.min(3);
         format!("{} {}", "#".repeat(adjusted_level), title)
@@ -292,8 +289,13 @@ impl LLMImportService {
         // 重複チェックしてユニークなスラグを生成
         let mut final_slug = slug.clone();
         let mut counter = 1;
-        
-        while self.database_service.get_post_by_slug(&final_slug).await?.is_some() {
+
+        while self
+            .database_service
+            .get_post_by_slug(&final_slug)
+            .await?
+            .is_some()
+        {
             final_slug = format!("{}-{}", slug, counter);
             counter += 1;
         }
@@ -309,8 +311,19 @@ impl LLMImportService {
 
         // コンテンツから技術的なキーワードを検出
         let tech_keywords = [
-            "rust", "javascript", "python", "react", "vue", "api", "database",
-            "web", "frontend", "backend", "programming", "code", "development"
+            "rust",
+            "javascript",
+            "python",
+            "react",
+            "vue",
+            "api",
+            "database",
+            "web",
+            "frontend",
+            "backend",
+            "programming",
+            "code",
+            "development",
         ];
 
         let content_lower = content.to_lowercase();
@@ -374,9 +387,12 @@ impl LLMImportService {
     async fn check_duplicate_content(&self, content: &str) -> bool {
         // 簡単な重複チェック（実際の実装では内容のハッシュ値を使用することも可能）
         let content_hash = content.len(); // 簡易的な実装
-        
+
         // 実際の実装では、データベースにハッシュ値を保存して比較する
-        warn!("重複チェック機能は簡易実装です: content_length={}", content_hash);
+        warn!(
+            "重複チェック機能は簡易実装です: content_length={}",
+            content_hash
+        );
         false // 現在は常にfalseを返す
     }
 

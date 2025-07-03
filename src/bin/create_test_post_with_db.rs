@@ -1,22 +1,20 @@
 use anyhow::Result;
 use std::sync::Arc;
-use tobelog::Config;
-use tobelog::services::{DatabaseService, MarkdownService};
 use tobelog::models::CreatePost;
+use tobelog::services::{DatabaseService, MarkdownService};
+use tobelog::Config;
 use tracing::{info, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
     info!("🧪 Creating test blog post with database sync...");
 
     let config = Config::from_env()?;
-    
+
     // Initialize services
     let database = Arc::new(DatabaseService::new(&config.database_url).await?);
     let markdown_service = MarkdownService::new();
@@ -63,9 +61,16 @@ tobelogブログシステムへようこそ！
         title: "初めての投稿".to_string(),
         content: content.to_string(),
         html_content,
-        excerpt: Some("tobelogでの初めての投稿です。Rustで作ったブログシステムの動作テストを行います。".to_string()),
+        excerpt: Some(
+            "tobelogでの初めての投稿です。Rustで作ったブログシステムの動作テストを行います。"
+                .to_string(),
+        ),
         category: Some("tech".to_string()),
-        tags: vec!["rust".to_string(), "blog".to_string(), "markdown".to_string()],
+        tags: vec![
+            "rust".to_string(),
+            "blog".to_string(),
+            "markdown".to_string(),
+        ],
         published: true,
         featured: false,
         author: Some("Tobe Junichiro".to_string()),
@@ -80,7 +85,10 @@ tobelogブログシステムへようこそ！
     info!("🆔 Post ID: {}", post.id);
     info!("🔗 Slug: {}", post.slug);
     info!("🌐 You can now view it at: http://localhost:3000/");
-    info!("📖 Direct link: http://localhost:3000/posts/{}/first-post", chrono::Utc::now().format("%Y"));
+    info!(
+        "📖 Direct link: http://localhost:3000/posts/{}/first-post",
+        chrono::Utc::now().format("%Y")
+    );
 
     Ok(())
 }

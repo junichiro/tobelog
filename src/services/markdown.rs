@@ -39,9 +39,12 @@ impl MarkdownService {
 
     /// Extract YAML frontmatter from markdown content
     #[allow(dead_code)]
-    fn extract_frontmatter(&self, content: &str) -> Result<(HashMap<String, serde_yaml::Value>, String)> {
+    fn extract_frontmatter(
+        &self,
+        content: &str,
+    ) -> Result<(HashMap<String, serde_yaml::Value>, String)> {
         let content = content.trim();
-        
+
         if !content.starts_with("---") {
             debug!("No frontmatter found in markdown");
             return Ok((HashMap::new(), content.to_string()));
@@ -59,8 +62,7 @@ impl MarkdownService {
         let frontmatter: HashMap<String, serde_yaml::Value> = if frontmatter_str.is_empty() {
             HashMap::new()
         } else {
-            serde_yaml::from_str(frontmatter_str)
-                .context("Failed to parse YAML frontmatter")?
+            serde_yaml::from_str(frontmatter_str).context("Failed to parse YAML frontmatter")?
         };
 
         debug!("Extracted {} frontmatter fields", frontmatter.len());
@@ -88,18 +90,26 @@ impl MarkdownService {
 
     /// Extract a specific field from frontmatter with type conversion
     #[allow(dead_code)]
-    pub fn extract_frontmatter_field<T>(&self, frontmatter: &HashMap<String, serde_yaml::Value>, key: &str) -> Option<T>
+    pub fn extract_frontmatter_field<T>(
+        &self,
+        frontmatter: &HashMap<String, serde_yaml::Value>,
+        key: &str,
+    ) -> Option<T>
     where
         T: for<'de> Deserialize<'de>,
     {
-        frontmatter.get(key).and_then(|value| {
-            T::deserialize(value.clone()).ok()
-        })
+        frontmatter
+            .get(key)
+            .and_then(|value| T::deserialize(value.clone()).ok())
     }
 
     /// Extract title from frontmatter or generate from content
     #[allow(dead_code)]
-    pub fn extract_title(&self, frontmatter: &HashMap<String, serde_yaml::Value>, content: &str) -> String {
+    pub fn extract_title(
+        &self,
+        frontmatter: &HashMap<String, serde_yaml::Value>,
+        content: &str,
+    ) -> String {
         // Try to get title from frontmatter
         if let Some(title) = self.extract_frontmatter_field::<String>(frontmatter, "title") {
             return title;
@@ -126,7 +136,10 @@ impl MarkdownService {
 
     /// Extract category from frontmatter
     #[allow(dead_code)]
-    pub fn extract_category(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Option<String> {
+    pub fn extract_category(
+        &self,
+        frontmatter: &HashMap<String, serde_yaml::Value>,
+    ) -> Option<String> {
         self.extract_frontmatter_field::<String>(frontmatter, "category")
     }
 
@@ -139,24 +152,27 @@ impl MarkdownService {
 
     /// Extract author from frontmatter
     #[allow(dead_code)]
-    pub fn extract_author(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Option<String> {
+    pub fn extract_author(
+        &self,
+        frontmatter: &HashMap<String, serde_yaml::Value>,
+    ) -> Option<String> {
         self.extract_frontmatter_field::<String>(frontmatter, "author")
     }
 
     /// Extract excerpt from frontmatter
     #[allow(dead_code)]
-    pub fn extract_excerpt(&self, frontmatter: &HashMap<String, serde_yaml::Value>) -> Option<String> {
+    pub fn extract_excerpt(
+        &self,
+        frontmatter: &HashMap<String, serde_yaml::Value>,
+    ) -> Option<String> {
         self.extract_frontmatter_field::<String>(frontmatter, "excerpt")
     }
 
     /// Generate excerpt from content if not provided in frontmatter
     #[allow(dead_code)]
     pub fn generate_excerpt(&self, content: &str, max_words: usize) -> String {
-        let words: Vec<&str> = content
-            .split_whitespace()
-            .take(max_words)
-            .collect();
-        
+        let words: Vec<&str> = content.split_whitespace().take(max_words).collect();
+
         let excerpt = words.join(" ");
         if words.len() < content.split_whitespace().count() {
             format!("{}...", excerpt)
@@ -190,8 +206,11 @@ published: true
 This is a test post."#;
 
         let result = service.parse_markdown(content).unwrap();
-        
-        assert_eq!(result.frontmatter.get("title").unwrap().as_str().unwrap(), "Test Post");
+
+        assert_eq!(
+            result.frontmatter.get("title").unwrap().as_str().unwrap(),
+            "Test Post"
+        );
         assert!(result.html.contains("<h1>Hello World</h1>"));
         assert!(result.html.contains("<p>This is a test post.</p>"));
     }
@@ -202,7 +221,7 @@ This is a test post."#;
         let content = "# Hello World\n\nThis is a test post.";
 
         let result = service.parse_markdown(content).unwrap();
-        
+
         assert!(result.frontmatter.is_empty());
         assert!(result.html.contains("<h1>Hello World</h1>"));
     }
@@ -211,7 +230,10 @@ This is a test post."#;
     fn test_extract_title() {
         let service = MarkdownService::new();
         let mut frontmatter = HashMap::new();
-        frontmatter.insert("title".to_string(), serde_yaml::Value::String("Test Title".to_string()));
+        frontmatter.insert(
+            "title".to_string(),
+            serde_yaml::Value::String("Test Title".to_string()),
+        );
 
         let title = service.extract_title(&frontmatter, "# Fallback Title");
         assert_eq!(title, "Test Title");
@@ -221,7 +243,7 @@ This is a test post."#;
     fn test_generate_excerpt() {
         let service = MarkdownService::new();
         let content = "This is a long piece of content that should be truncated at some point.";
-        
+
         let excerpt = service.generate_excerpt(content, 5);
         assert_eq!(excerpt, "This is a long piece...");
     }

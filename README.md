@@ -1,1 +1,295 @@
-# tobelog
+# tobelog - 個人ブログシステム
+
+[![CI/CD Pipeline](https://github.com/junichiro/tobelog/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/junichiro/tobelog/actions/workflows/ci-cd.yml)
+[![Security Analysis](https://github.com/junichiro/tobelog/actions/workflows/security.yml/badge.svg)](https://github.com/junichiro/tobelog/actions/workflows/security.yml)
+
+## 概要
+
+`tobelog`は、Dropboxをメインストレージとして活用するRust製の個人ブログシステムです。個人利用に最適化されており、Markdown形式での記事管理とLLM生成記事の入稿に対応しています。
+
+### 特徴
+
+- **Dropboxストレージ連携**: 記事とメディアファイルをDropboxで管理
+- **Markdown記事管理**: pulldown-cmarkによる高速Markdown処理
+- **LLM生成記事対応**: AI生成コンテンツの簡単入稿
+- **レスポンシブデザイン**: モバイル・デスクトップ対応
+- **SSL/TLS対応**: Let's EncryptとnginxによるHTTPS化
+- **Docker対応**: 開発・本番環境の統一
+- **systemd連携**: システムサービスとしての安定運用
+- **パフォーマンス最適化**: キャッシュシステムとパフォーマンス監視
+
+## 技術スタック
+
+### バックエンド
+- **言語**: Rust (2021 Edition)
+- **Webフレームワーク**: Axum
+- **データベース**: SQLite (SQLxによるORM)
+- **テンプレートエンジン**: Tera
+- **Markdown処理**: pulldown-cmark
+
+### フロントエンド
+- **スタイリング**: TailwindCSS
+- **レスポンシブデザイン**: モバイルファースト
+
+### インフラ
+- **コンテナ**: Docker & Docker Compose
+- **リバースプロキシ**: nginx
+- **SSL証明書**: Let's Encrypt (certbot)
+- **サービス管理**: systemd
+- **CI/CD**: GitHub Actions
+
+## セットアップ
+
+### 必要な環境
+
+- Rust 1.70+
+- Docker & Docker Compose
+- SQLite3
+- Dropbox API アクセストークン
+
+### 1. 環境変数の設定
+
+```bash
+cp .env.example .env
+```
+
+`.env`ファイルを編集して必要な環境変数を設定：
+
+```env
+# サーバー設定
+SERVER_HOST=0.0.0.0
+SERVER_PORT=3000
+
+# データベース
+DATABASE_URL=sqlite://blog.db
+
+# Dropbox API
+DROPBOX_ACCESS_TOKEN=your_dropbox_token_here
+
+# セキュリティ
+API_KEY=your_secure_api_key_here
+
+# ブログ設定
+BLOG_TITLE=My Personal Blog
+```
+
+### 2. Dropbox App設定
+
+1. [Dropbox App Console](https://www.dropbox.com/developers/apps)で新規アプリを作成
+2. Permission設定: `files.content.read`, `files.content.write`
+3. アクセストークンを取得して環境変数に設定
+
+### 3. 開発環境での起動
+
+```bash
+# 依存関係のインストール
+cargo build
+
+# データベースの初期化
+cargo run --bin test_markdown_database
+
+# Dropboxフォルダ構造の作成
+cargo run --bin test_dropbox
+
+# サーバーの起動
+cargo run
+```
+
+ブラウザで `http://localhost:3000` にアクセス
+
+### 4. Docker環境での起動
+
+```bash
+# 開発環境
+docker-compose up -d
+
+# 本番環境
+docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+```
+
+## 使用方法
+
+### 記事の作成・投稿
+
+#### 手動投稿ワークフロー
+
+1. Markdownファイルを作成（フロントマター必須）：
+
+```markdown
+---
+title: "記事タイトル"
+created_at: "2025-01-01T00:00:00Z"
+category: "tech"
+tags: ["rust", "blog"]
+published: true
+---
+
+# 記事本文
+
+ここに記事の内容を書きます。
+```
+
+2. Dropboxにアップロード：
+
+```bash
+cargo run --bin upload_to_dropbox article.md
+```
+
+3. データベースと同期：
+
+```bash
+cargo run --bin sync_dropbox_to_db
+```
+
+#### API経由での投稿
+
+```bash
+# 記事一覧の取得
+curl http://localhost:3000/api/posts
+
+# 新規記事の作成
+curl -X POST http://localhost:3000/api/posts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "title": "新しい記事",
+    "content": "記事の内容",
+    "category": "tech",
+    "tags": ["rust"],
+    "published": true
+  }'
+```
+
+### 管理画面
+
+`http://localhost:3000/admin` で管理画面にアクセス可能です。
+
+- 記事の作成・編集・削除
+- メディアファイルの管理
+- サイト統計の確認
+
+## API仕様
+
+詳細なAPI仕様書は [docs/api-specification.md](docs/api-specification.md) を参照してください。
+
+### 主要エンドポイント
+
+| メソッド | エンドポイント | 説明 |
+|---------|-------------|------|
+| GET | `/` | ホームページ（記事一覧） |
+| GET | `/posts/{year}/{slug}` | 個別記事表示 |
+| GET | `/api/posts` | 記事一覧API |
+| POST | `/api/posts` | 記事作成 |
+| PUT | `/api/posts/{slug}` | 記事更新 |
+| DELETE | `/api/posts/{slug}` | 記事削除 |
+| GET | `/admin` | 管理画面 |
+| GET | `/health` | ヘルスチェック |
+
+## デプロイ
+
+### SSL証明書の設定
+
+```bash
+# 初回証明書取得
+sudo certbot certonly --standalone -d your-domain.com
+
+# 自動更新の設定
+sudo crontab -e
+# 以下を追加
+0 12 * * * /path/to/scripts/ssl-renewal.sh
+```
+
+### systemdサービス設定
+
+```bash
+# サービスファイルのコピー
+sudo cp systemd/tobelog.service /etc/systemd/system/
+
+# サービスの有効化と起動
+sudo systemctl enable tobelog
+sudo systemctl start tobelog
+```
+
+### nginx設定
+
+```bash
+# nginx設定ファイルのコピー
+sudo cp nginx/nginx.conf /etc/nginx/sites-available/tobelog
+sudo ln -s /etc/nginx/sites-available/tobelog /etc/nginx/sites-enabled/
+
+# nginx設定のテストと再起動
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+## 開発
+
+### テストの実行
+
+```bash
+# 全テストの実行
+cargo test
+
+# SSL設定テスト
+cargo test ssl_config_test
+
+# CI/CD設定テスト
+cargo test cicd_config_test
+```
+
+### コード品質チェック
+
+```bash
+# フォーマット確認
+cargo fmt --check
+
+# Clippy実行
+cargo clippy -- -D warnings
+
+# セキュリティ監査
+cargo audit
+```
+
+### 設定ファイル
+
+- [開発環境設定](DEVELOPMENT.md)
+- [Docker設定](DOCKER.md)
+- [systemd設定](SYSTEMD.md)
+- [プロジェクト仕様](CLAUDE.md)
+
+## パフォーマンス
+
+- **起動時間**: 3秒以内
+- **メモリ使用量**: 50MB以下（アイドル時）
+- **記事表示**: 100ms以下
+- **API応答**: 50ms以下
+
+## セキュリティ
+
+- HTTPS強制（Let's Encrypt）
+- セキュリティヘッダー設定
+- Rate Limiting
+- API Key認証
+- 依存関係の脆弱性監視
+
+## ライセンス
+
+MIT License
+
+## コントリビューション
+
+1. Issue作成
+2. Feature branchを作成
+3. 変更を実装
+4. テストを追加
+5. Pull Requestを作成
+
+## サポート
+
+- [GitHub Issues](https://github.com/junichiro/tobelog/issues)
+- [開発ガイド](DEVELOPMENT.md)
+- [トラブルシューティング](docs/troubleshooting.md)
+
+---
+
+**tobelog** - Simple, secure, and scalable personal blogging with Rust & Dropbox
