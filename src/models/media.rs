@@ -20,14 +20,6 @@ pub struct MediaFile {
     pub caption: Option<String>,
 }
 
-/// Request for uploading media file
-#[derive(Debug, Deserialize)]
-pub struct MediaUploadRequest {
-    pub alt_text: Option<String>,
-    pub caption: Option<String>,
-    pub folder: Option<String>, // e.g., "images", "videos", "documents"
-}
-
 /// Response for media upload
 #[derive(Debug, Serialize)]
 pub struct MediaUploadResponse {

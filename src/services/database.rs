@@ -250,13 +250,11 @@ impl DatabaseService {
         query.push_str(" ORDER BY created_at DESC");
 
         if let Some(limit) = filters.limit {
-            query.push_str(" LIMIT ?");
-            params.push(limit.to_string());
+            query.push_str(&format!(" LIMIT {}", limit));
         }
 
         if let Some(offset) = filters.offset {
-            query.push_str(" OFFSET ?");
-            params.push(offset.to_string());
+            query.push_str(&format!(" OFFSET {}", offset));
         }
 
         let mut sql_query = sqlx::query(&query);
@@ -534,13 +532,11 @@ impl DatabaseService {
         query.push_str(" ORDER BY uploaded_at DESC");
 
         if let Some(limit) = filters.limit {
-            query.push_str(" LIMIT ?");
-            params.push(limit.to_string());
+            query.push_str(&format!(" LIMIT {}", limit));
         }
 
         if let Some(offset) = filters.offset {
-            query.push_str(" OFFSET ?");
-            params.push(offset.to_string());
+            query.push_str(&format!(" OFFSET {}", offset));
         }
 
         let mut sql_query = sqlx::query(&query);
@@ -724,21 +720,21 @@ impl DatabaseService {
     /// Helper method to convert SqliteRow to MediaFile
     fn row_to_media_file(&self, row: SqliteRow) -> Result<MediaFile> {
         Ok(MediaFile {
-            id: Uuid::parse_str(row.get("id")).context("Invalid UUID in database")?,
-            filename: row.get("filename"),
-            original_filename: row.get("original_filename"),
-            dropbox_path: row.get("dropbox_path"),
-            url: row.get("url"),
-            file_size: row.get::<i64, _>("file_size") as u64,
-            mime_type: row.get("mime_type"),
-            width: row.get::<Option<i64>, _>("width").map(|w| w as u32),
-            height: row.get::<Option<i64>, _>("height").map(|h| h as u32),
-            uploaded_at: DateTime::parse_from_rfc3339(row.get("uploaded_at"))
+            id: Uuid::parse_str(row.try_get("id")?).context("Invalid UUID in database")?,
+            filename: row.try_get("filename")?,
+            original_filename: row.try_get("original_filename")?,
+            dropbox_path: row.try_get("dropbox_path")?,
+            url: row.try_get("url")?,
+            file_size: row.try_get::<i64, _>("file_size")? as u64,
+            mime_type: row.try_get("mime_type")?,
+            width: row.try_get::<Option<i64>, _>("width")?.map(|w| w as u32),
+            height: row.try_get::<Option<i64>, _>("height")?.map(|h| h as u32),
+            uploaded_at: DateTime::parse_from_rfc3339(row.try_get("uploaded_at")?)
                 .context("Invalid uploaded_at timestamp")?
                 .with_timezone(&Utc),
-            thumbnail_url: row.get("thumbnail_url"),
-            alt_text: row.get("alt_text"),
-            caption: row.get("caption"),
+            thumbnail_url: row.try_get("thumbnail_url")?,
+            alt_text: row.try_get("alt_text")?,
+            caption: row.try_get("caption")?,
         })
     }
 }

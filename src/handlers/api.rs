@@ -1108,13 +1108,9 @@ pub async fn list_media_api(
         })?;
 
     // Get total count
-    let count_filters = MediaFilters {
-        folder: query.folder,
-        mime_type: query.mime_type,
-        search: query.search,
-        limit: None,
-        offset: None,
-    };
+    let mut count_filters = filters.clone();
+    count_filters.limit = None;
+    count_filters.offset = None;
 
     let total_count = state.media.count_media_files(count_filters).await
         .map_err(|e| {
