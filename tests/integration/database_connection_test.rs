@@ -1,15 +1,11 @@
-use std::path::Path;
+use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_sqliteファイルベース接続が正常に動作する() {
     // ファイルベースSQLite接続をテスト
-    let test_db_path = "test_database.db";
-    let database_url = format!("sqlite:{}", test_db_path);
-    
-    // テスト前にファイルを削除
-    if Path::new(test_db_path).exists() {
-        std::fs::remove_file(test_db_path).unwrap();
-    }
+    let temp_dir = tempdir().expect("Failed to create temp dir");
+    let test_db_path = temp_dir.path().join("test_database.db");
+    let database_url = format!("sqlite:{}", test_db_path.to_str().unwrap());
     
     // DatabaseServiceを初期化
     let result = tobelog::services::DatabaseService::new(&database_url).await;
@@ -24,7 +20,7 @@ async fn test_sqliteファイルベース接続が正常に動作する() {
     
     // データベースファイルが作成されていることを確認
     assert!(
-        Path::new(test_db_path).exists(),
+        test_db_path.exists(),
         "データベースファイルが作成されていません"
     );
     
@@ -71,23 +67,16 @@ async fn test_sqliteファイルベース接続が正常に動作する() {
     assert_eq!(post.title, "テスト記事");
     assert_eq!(post.content, "これはテスト記事です。");
     
-    // テスト後のクリーンアップ
-    if Path::new(test_db_path).exists() {
-        std::fs::remove_file(test_db_path).unwrap();
-    }
+    // テンポラリディレクトリは自動的にクリーンアップされる
 }
 
 #[tokio::test]
 async fn test_データベースディレクトリ作成機能() {
     // ネストしたディレクトリパスでのデータベース作成をテスト
-    let test_dir = "test_data/nested/database";
-    let test_db_path = format!("{}/test.db", test_dir);
-    let database_url = format!("sqlite:{}", test_db_path);
-    
-    // テスト前にディレクトリを削除
-    if Path::new("test_data").exists() {
-        std::fs::remove_dir_all("test_data").unwrap();
-    }
+    let temp_dir = tempdir().expect("Failed to create temp dir");
+    let test_dir = temp_dir.path().join("nested").join("database");
+    let test_db_path = test_dir.join("test.db");
+    let database_url = format!("sqlite:{}", test_db_path.to_str().unwrap());
     
     // DatabaseServiceを初期化（ディレクトリが自動作成されるべき）
     let result = tobelog::services::DatabaseService::new(&database_url).await;
@@ -100,39 +89,34 @@ async fn test_データベースディレクトリ作成機能() {
     
     // ディレクトリとファイルが作成されていることを確認
     assert!(
-        Path::new(test_dir).exists(),
+        test_dir.exists(),
         "データベースディレクトリが作成されていません"
     );
     
     assert!(
-        Path::new(&test_db_path).exists(),
+        test_db_path.exists(),
         "データベースファイルが作成されていません"
     );
     
-    // テスト後のクリーンアップ
-    if Path::new("test_data").exists() {
-        std::fs::remove_dir_all("test_data").unwrap();
-    }
+    // テンポラリディレクトリは自動的にクリーンアップされる
 }
 
 #[tokio::test]
 async fn test_メインサーバー起動時のデータベース接続() {
     use tobelog::config::Config;
     
+    // テンポラリディレクトリでテスト用データベースを作成
+    let temp_dir = tempdir().expect("Failed to create temp dir");
+    let test_db_path = temp_dir.path().join("test_server.db");
+    let database_url = format!("sqlite:{}", test_db_path.to_str().unwrap());
+    
     // テスト用の環境変数を設定
-    std::env::set_var("DATABASE_URL", "sqlite://test_server.db");
+    std::env::set_var("DATABASE_URL", &database_url);
     std::env::set_var("SERVER_HOST", "127.0.0.1");
     std::env::set_var("SERVER_PORT", "3001");
     std::env::set_var("DROPBOX_ACCESS_TOKEN", "test_token");
     std::env::set_var("API_KEY", "test_api_key");
     std::env::set_var("BLOG_TITLE", "Test Blog");
-    
-    let test_db_path = "test_server.db";
-    
-    // テスト前にファイルを削除
-    if Path::new(test_db_path).exists() {
-        std::fs::remove_file(test_db_path).unwrap();
-    }
     
     // 設定を読み込み
     let config_result = Config::from_env();
@@ -154,12 +138,9 @@ async fn test_メインサーバー起動時のデータベース接続() {
     
     // データベースファイルが作成されていることを確認
     assert!(
-        Path::new(test_db_path).exists(),
+        test_db_path.exists(),
         "メインサーバー用データベースファイルが作成されていません"
     );
     
-    // テスト後のクリーンアップ
-    if Path::new(test_db_path).exists() {
-        std::fs::remove_file(test_db_path).unwrap();
-    }
+    // テンポラリディレクトリは自動的にクリーンアップされる
 }

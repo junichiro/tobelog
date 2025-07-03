@@ -70,7 +70,10 @@ impl DatabaseService {
             // Create database file if it doesn't exist
             if !file_path.exists() {
                 info!("Creating database file: {}", file_path.display());
-                std::fs::File::create(file_path)
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(file_path)
                     .with_context(|| format!("Failed to create database file: {}", file_path.display()))?;
                 info!("Created database file: {}", file_path.display());
             } else {

@@ -2704,6 +2704,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "sqlx",
+ "tempfile",
  "tera",
  "thiserror 1.0.69",
  "tokio",
