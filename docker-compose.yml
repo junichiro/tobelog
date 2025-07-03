@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  tobelog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tobelog-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=3000
+      - DATABASE_URL=sqlite:///home/app/data/blog.db
+      - RUST_LOG=info
+      # Dropbox access token must be provided via .env file or environment
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN}
+      # Optional API key for admin functions
+      - API_KEY=${API_KEY:-}
+    volumes:
+      # Persistent database storage
+      - blog_data:/home/app/data
+      # Optional: mount custom config if needed
+      - ./config:/home/app/config:ro
+    networks:
+      - tobelog-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # We need write access for SQLite
+    user: "1001:1001"  # Run as non-root user
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+
+networks:
+  tobelog-network:
+    driver: bridge
+    name: tobelog-network
+
+volumes:
+  blog_data:
+    driver: local
+    name: tobelog-blog-data

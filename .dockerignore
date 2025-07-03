@@ -1,0 +1,63 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Development files
+.git
+.gitignore
+README.md
+*.md
+docs/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment and config files
+.env
+.env.*
+*.local
+
+# Docker files (don't copy into container)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# Database files (should be mounted as volumes)
+*.db
+*.db-*
+
+# Temporary files
+tmp/
+temp/
+
+# Node modules (if any)
+node_modules/
+
+# Python cache (if any)
+__pycache__/
+*.pyc
+
+# Test artifacts
+coverage/
+.coverage
+
+# Backup files
+*.bak
+*.orig
