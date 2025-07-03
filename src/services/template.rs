@@ -107,6 +107,30 @@ pub struct PostPageContext {
     pub post: PostData,
 }
 
+/// Context for category page template
+#[derive(Debug, Serialize)]
+pub struct CategoryPageContext {
+    pub site_title: String,
+    pub site_description: String,
+    pub category_name: String,
+    pub posts: Vec<PostSummary>,
+    pub total_posts: usize,
+    pub page: usize,
+    pub total_pages: usize,
+}
+
+/// Context for tag page template
+#[derive(Debug, Serialize)]
+pub struct TagPageContext {
+    pub site_title: String,
+    pub site_description: String,
+    pub tag_name: String,
+    pub posts: Vec<PostSummary>,
+    pub total_posts: usize,
+    pub page: usize,
+    pub total_pages: usize,
+}
+
 /// Post summary for templates
 #[derive(Debug, Serialize)]
 pub struct PostSummary {

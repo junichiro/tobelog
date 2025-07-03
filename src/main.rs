@@ -130,6 +130,8 @@ async fn main() -> anyhow::Result<()> {
     let web_pages_router = Router::new()
         .route("/", get(posts::home_page))
         .route("/posts/:year/:slug", get(posts::post_page))
+        .route("/category/:category", get(posts::category_page))
+        .route("/tag/:tag", get(posts::tag_page))
         .with_state(posts_state.clone());
 
     let api_router = Router::new()
