@@ -19,8 +19,8 @@ mod middleware;
 mod models;
 mod services;
 
-use handlers::{posts, api, admin, version};
-use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService, VersionService};
+use handlers::{posts, api, admin, version, theme};
+use services::{DropboxClient, BlogStorageService, DatabaseService, MarkdownService, TemplateService, LLMImportService, MediaService, VersionService, ThemeService};
 
 #[derive(Clone)]
 struct AppState {
@@ -84,6 +84,13 @@ async fn main() -> anyhow::Result<()> {
     ));
     info!("Version service initialized");
 
+    // Initialize theme service
+    let theme_service = Arc::new(ThemeService::new(
+        (*database).clone(),
+        dropbox_client.clone(),
+    ));
+    info!("Theme service initialized");
+
     // Test Dropbox connection on startup (with warning if it fails)
     match dropbox_client.test_connection().await {
         Ok(account_info) => {
@@ -135,6 +142,11 @@ async fn main() -> anyhow::Result<()> {
 
     let version_state = version::VersionState {
         version_service: (*version_service).clone(),
+        database: (*database).clone(),
+    };
+
+    let theme_state = theme::ThemeState {
+        theme_service: (*theme_service).clone(),
         database: (*database).clone(),
     };
     
@@ -192,6 +204,25 @@ async fn main() -> anyhow::Result<()> {
         .with_state(version_state)
         .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
 
+    let theme_router = Router::new()
+        // Theme management API endpoints (auth required)
+        .route("/api/themes", get(theme::list_themes))
+        .route("/api/themes", post(theme::create_theme))
+        .route("/api/themes/active", get(theme::get_active_theme))
+        .route("/api/themes/sync", post(theme::sync_dropbox_themes))
+        .route("/api/themes/presets", post(theme::create_preset_themes))
+        .route("/api/themes/:name", get(theme::get_theme))
+        .route("/api/themes/:name", put(theme::update_theme))
+        .route("/api/themes/:name", delete(theme::delete_theme))
+        .route("/api/themes/:name/activate", post(theme::activate_theme))
+        .route("/api/themes/:name/preview", get(theme::get_theme_preview))
+        .route("/api/themes/:name/css", get(theme::get_theme_css))
+        // Site configuration endpoints (auth required)
+        .route("/api/site/config", get(theme::get_site_config))
+        .route("/api/site/config", put(theme::update_site_config))
+        .with_state(theme_state)
+        .layer(from_fn_with_state(config.clone(), crate::middleware::auth_middleware));
+
     let legacy_router = Router::new()
         .route("/health", get(health_handler))
         .route("/api/dropbox/status", get(dropbox_status_handler))
@@ -209,6 +240,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(api_router)
         .merge(admin_router)
         .merge(version_router)
+        .merge(theme_router)
         .merge(legacy_router)
         .merge(media_router)
         // Static file serving

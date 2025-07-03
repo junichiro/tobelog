@@ -5,7 +5,11 @@ use sqlx::sqlite::SqliteRow;
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::models::{Post, CreatePost, UpdatePost, PostFilters, PostStats, CategoryStat, MediaFile, MediaFilters};
+use crate::models::{
+    Post, CreatePost, UpdatePost, PostFilters, PostStats, CategoryStat, MediaFile, MediaFilters,
+    ThemeSettings, UpdateThemeRequest, ThemeFilters, SiteConfig,
+    HeaderStyle, FooterStyle, SocialLink
+};
 
 #[derive(sqlx::FromRow)]
 struct MediaFileRow {
@@ -76,6 +80,13 @@ impl DatabaseService {
             .execute(&self.pool)
             .await
             .context("Failed to run migration 004")?;
+
+        // Migration 5: Create themes table
+        let migration_5 = include_str!("../../migrations/005_create_themes_table.sql");
+        sqlx::query(migration_5)
+            .execute(&self.pool)
+            .await
+            .context("Failed to run migration 005")?;
 
         info!("Database migrations completed successfully");
         Ok(())
@@ -911,6 +922,440 @@ impl DatabaseService {
                 .context("Invalid created_at timestamp")?
                 .with_timezone(&Utc),
             created_by: row.try_get("created_by")?,
+        })
+    }
+
+    // Theme management methods
+
+    /// Create a new theme
+    pub async fn create_theme(&self, theme: &ThemeSettings) -> Result<ThemeSettings> {
+        debug!("Creating theme: {}", theme.name);
+
+        let now = Utc::now();
+        let header_style_json = serde_json::to_string(&theme.header_style)?;
+        let footer_style_json = serde_json::to_string(&theme.footer_style)?;
+
+        let theme_id = sqlx::query(
+            r#"
+            INSERT INTO themes (
+                name, display_name, description, is_active,
+                primary_color, secondary_color, background_color, text_color, accent_color,
+                font_family, heading_font, font_size_base, layout, dark_mode_enabled,
+                custom_css, header_style, footer_style, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&theme.name)
+        .bind(&theme.display_name)
+        .bind(&theme.description)
+        .bind(theme.is_active)
+        .bind(&theme.primary_color)
+        .bind(&theme.secondary_color)
+        .bind(&theme.background_color)
+        .bind(&theme.text_color)
+        .bind(&theme.accent_color)
+        .bind(&theme.font_family)
+        .bind(&theme.heading_font)
+        .bind(&theme.font_size_base)
+        .bind(format!("{:?}", theme.layout).to_lowercase())
+        .bind(theme.dark_mode_enabled)
+        .bind(&theme.custom_css)
+        .bind(header_style_json)
+        .bind(footer_style_json)
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .context("Failed to insert theme")?;
+
+        let id = theme_id.last_insert_rowid();
+
+        Ok(ThemeSettings {
+            id: Some(id),
+            created_at: Some(now),
+            updated_at: Some(now),
+            ..theme.clone()
+        })
+    }
+
+    /// Get theme by name
+    pub async fn get_theme_by_name(&self, name: &str) -> Result<Option<ThemeSettings>> {
+        debug!("Getting theme by name: {}", name);
+
+        let row = sqlx::query("SELECT * FROM themes WHERE name = ? LIMIT 1")
+            .bind(name)
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to get theme by name")?;
+
+        if let Some(row) = row {
+            let theme = self.row_to_theme(&row)?;
+            Ok(Some(theme))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get active theme
+    pub async fn get_active_theme(&self) -> Result<Option<ThemeSettings>> {
+        debug!("Getting active theme");
+
+        let row = sqlx::query("SELECT * FROM themes WHERE is_active = TRUE LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to get active theme")?;
+
+        if let Some(row) = row {
+            let theme = self.row_to_theme(&row)?;
+            Ok(Some(theme))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Update theme
+    pub async fn update_theme(&self, name: &str, request: UpdateThemeRequest) -> Result<Option<ThemeSettings>> {
+        debug!("Updating theme: {}", name);
+
+        // Get existing theme first
+        let existing_theme = match self.get_theme_by_name(name).await? {
+            Some(theme) => theme,
+            None => return Ok(None),
+        };
+
+        let now = Utc::now();
+        
+        // Apply updates to existing theme
+        let updated_theme = ThemeSettings {
+            display_name: request.display_name.unwrap_or(existing_theme.display_name),
+            description: request.description.or(existing_theme.description),
+            primary_color: request.primary_color.unwrap_or(existing_theme.primary_color),
+            secondary_color: request.secondary_color.unwrap_or(existing_theme.secondary_color),
+            background_color: request.background_color.unwrap_or(existing_theme.background_color),
+            text_color: request.text_color.unwrap_or(existing_theme.text_color),
+            accent_color: request.accent_color.unwrap_or(existing_theme.accent_color),
+            font_family: request.font_family.unwrap_or(existing_theme.font_family),
+            heading_font: request.heading_font.or(existing_theme.heading_font),
+            font_size_base: request.font_size_base.unwrap_or(existing_theme.font_size_base),
+            layout: request.layout.unwrap_or(existing_theme.layout),
+            dark_mode_enabled: request.dark_mode_enabled.unwrap_or(existing_theme.dark_mode_enabled),
+            custom_css: request.custom_css.or(existing_theme.custom_css),
+            header_style: request.header_style.unwrap_or(existing_theme.header_style),
+            footer_style: request.footer_style.unwrap_or(existing_theme.footer_style),
+            updated_at: Some(now),
+            ..existing_theme
+        };
+
+        let header_style_json = serde_json::to_string(&updated_theme.header_style)?;
+        let footer_style_json = serde_json::to_string(&updated_theme.footer_style)?;
+
+        sqlx::query(
+            r#"
+            UPDATE themes SET
+                display_name = ?, description = ?, primary_color = ?, secondary_color = ?,
+                background_color = ?, text_color = ?, accent_color = ?, font_family = ?,
+                heading_font = ?, font_size_base = ?, layout = ?, dark_mode_enabled = ?,
+                custom_css = ?, header_style = ?, footer_style = ?, updated_at = ?
+            WHERE name = ?
+            "#
+        )
+        .bind(&updated_theme.display_name)
+        .bind(&updated_theme.description)
+        .bind(&updated_theme.primary_color)
+        .bind(&updated_theme.secondary_color)
+        .bind(&updated_theme.background_color)
+        .bind(&updated_theme.text_color)
+        .bind(&updated_theme.accent_color)
+        .bind(&updated_theme.font_family)
+        .bind(&updated_theme.heading_font)
+        .bind(&updated_theme.font_size_base)
+        .bind(format!("{:?}", updated_theme.layout).to_lowercase())
+        .bind(updated_theme.dark_mode_enabled)
+        .bind(&updated_theme.custom_css)
+        .bind(header_style_json)
+        .bind(footer_style_json)
+        .bind(now.to_rfc3339())
+        .bind(name)
+        .execute(&self.pool)
+        .await
+        .context("Failed to update theme")?;
+
+        Ok(Some(updated_theme))
+    }
+
+    /// Delete theme
+    pub async fn delete_theme(&self, name: &str) -> Result<bool> {
+        debug!("Deleting theme: {}", name);
+
+        let result = sqlx::query("DELETE FROM themes WHERE name = ?")
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .context("Failed to delete theme")?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// Set theme as active (deactivates all others)
+    pub async fn activate_theme(&self, name: &str) -> Result<Option<ThemeSettings>> {
+        debug!("Activating theme: {}", name);
+
+        // First deactivate all themes
+        sqlx::query("UPDATE themes SET is_active = FALSE")
+            .execute(&self.pool)
+            .await
+            .context("Failed to deactivate themes")?;
+
+        // Then activate the specified theme
+        let result = sqlx::query("UPDATE themes SET is_active = TRUE WHERE name = ?")
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .context("Failed to activate theme")?;
+
+        if result.rows_affected() > 0 {
+            self.get_theme_by_name(name).await
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Deactivate theme
+    pub async fn deactivate_theme(&self, name: &str) -> Result<bool> {
+        debug!("Deactivating theme: {}", name);
+
+        let result = sqlx::query("UPDATE themes SET is_active = FALSE WHERE name = ?")
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .context("Failed to deactivate theme")?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    /// List themes with filters
+    pub async fn list_themes(&self, filters: ThemeFilters) -> Result<Vec<ThemeSettings>> {
+        debug!("Listing themes with filters: {:?}", filters);
+
+        let mut query = "SELECT * FROM themes WHERE 1=1".to_string();
+        let mut params = Vec::new();
+
+        if let Some(is_active) = filters.is_active {
+            query.push_str(" AND is_active = ?");
+            params.push(is_active.to_string());
+        }
+
+        if let Some(layout) = filters.layout {
+            query.push_str(" AND layout = ?");
+            params.push(format!("{:?}", layout).to_lowercase());
+        }
+
+        if let Some(dark_mode_enabled) = filters.dark_mode_enabled {
+            query.push_str(" AND dark_mode_enabled = ?");
+            params.push(dark_mode_enabled.to_string());
+        }
+
+        query.push_str(" ORDER BY created_at DESC");
+
+        if let Some(limit) = filters.limit {
+            query.push_str(&format!(" LIMIT {}", limit));
+        }
+
+        if let Some(offset) = filters.offset {
+            query.push_str(&format!(" OFFSET {}", offset));
+        }
+
+        let mut sql_query = sqlx::query(&query);
+        for param in params {
+            sql_query = sql_query.bind(param);
+        }
+
+        let rows = sql_query
+            .fetch_all(&self.pool)
+            .await
+            .context("Failed to list themes")?;
+
+        let themes = rows
+            .iter()
+            .map(|row| self.row_to_theme(row))
+            .collect::<Result<Vec<_>>>()?;
+
+        debug!("Found {} themes", themes.len());
+        Ok(themes)
+    }
+
+    /// Helper method to convert SqliteRow to ThemeSettings
+    fn row_to_theme(&self, row: &SqliteRow) -> Result<ThemeSettings> {
+        let layout_str: String = row.try_get("layout")?;
+        let layout = match layout_str.as_str() {
+            "single" => crate::models::ThemeLayout::Single,
+            "sidebar" => crate::models::ThemeLayout::Sidebar,
+            "magazine" => crate::models::ThemeLayout::Magazine,
+            _ => crate::models::ThemeLayout::Sidebar, // Default fallback
+        };
+
+        let header_style_json: String = row.try_get("header_style")?;
+        let header_style: HeaderStyle = serde_json::from_str(&header_style_json)?;
+
+        let footer_style_json: String = row.try_get("footer_style")?;
+        let footer_style: FooterStyle = serde_json::from_str(&footer_style_json)?;
+
+        Ok(ThemeSettings {
+            id: Some(row.try_get("id")?),
+            name: row.try_get("name")?,
+            display_name: row.try_get("display_name")?,
+            description: row.try_get("description")?,
+            is_active: row.try_get("is_active")?,
+            primary_color: row.try_get("primary_color")?,
+            secondary_color: row.try_get("secondary_color")?,
+            background_color: row.try_get("background_color")?,
+            text_color: row.try_get("text_color")?,
+            accent_color: row.try_get("accent_color")?,
+            font_family: row.try_get("font_family")?,
+            heading_font: row.try_get("heading_font")?,
+            font_size_base: row.try_get("font_size_base")?,
+            layout,
+            dark_mode_enabled: row.try_get("dark_mode_enabled")?,
+            custom_css: row.try_get("custom_css")?,
+            header_style,
+            footer_style,
+            created_at: DateTime::parse_from_rfc3339(row.try_get("created_at")?)
+                .context("Invalid created_at timestamp")?
+                .with_timezone(&Utc).into(),
+            updated_at: DateTime::parse_from_rfc3339(row.try_get("updated_at")?)
+                .context("Invalid updated_at timestamp")?
+                .with_timezone(&Utc).into(),
+        })
+    }
+
+    // Site configuration methods
+
+    /// Get site configuration
+    pub async fn get_site_config(&self) -> Result<Option<SiteConfig>> {
+        debug!("Getting site configuration");
+
+        let row = sqlx::query("SELECT * FROM site_config LIMIT 1")
+            .fetch_optional(&self.pool)
+            .await
+            .context("Failed to get site config")?;
+
+        if let Some(row) = row {
+            let config = self.row_to_site_config(&row)?;
+            Ok(Some(config))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Create site configuration
+    pub async fn create_site_config(&self, config: &SiteConfig) -> Result<SiteConfig> {
+        debug!("Creating site configuration");
+
+        let now = Utc::now();
+        let social_links_json = serde_json::to_string(&config.social_links)?;
+        let google_fonts_json = serde_json::to_string(&config.google_fonts)?;
+
+        let config_id = sqlx::query(
+            r#"
+            INSERT INTO site_config (
+                site_title, site_description, site_logo, favicon,
+                author_name, author_email, author_bio,
+                social_links, google_analytics_id, google_fonts,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&config.site_title)
+        .bind(&config.site_description)
+        .bind(&config.site_logo)
+        .bind(&config.favicon)
+        .bind(&config.author_name)
+        .bind(&config.author_email)
+        .bind(&config.author_bio)
+        .bind(social_links_json)
+        .bind(&config.google_analytics_id)
+        .bind(google_fonts_json)
+        .bind(now.to_rfc3339())
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .context("Failed to insert site config")?;
+
+        let id = config_id.last_insert_rowid();
+
+        Ok(SiteConfig {
+            id: Some(id),
+            created_at: Some(now),
+            updated_at: Some(now),
+            ..config.clone()
+        })
+    }
+
+    /// Update site configuration
+    pub async fn update_site_config(&self, config: SiteConfig) -> Result<SiteConfig> {
+        debug!("Updating site configuration");
+
+        let now = Utc::now();
+        let social_links_json = serde_json::to_string(&config.social_links)?;
+        let google_fonts_json = serde_json::to_string(&config.google_fonts)?;
+
+        sqlx::query(
+            r#"
+            UPDATE site_config SET
+                site_title = ?, site_description = ?, site_logo = ?, favicon = ?,
+                author_name = ?, author_email = ?, author_bio = ?,
+                social_links = ?, google_analytics_id = ?, google_fonts = ?,
+                updated_at = ?
+            WHERE id = (SELECT MIN(id) FROM site_config)
+            "#
+        )
+        .bind(&config.site_title)
+        .bind(&config.site_description)
+        .bind(&config.site_logo)
+        .bind(&config.favicon)
+        .bind(&config.author_name)
+        .bind(&config.author_email)
+        .bind(&config.author_bio)
+        .bind(social_links_json)
+        .bind(&config.google_analytics_id)
+        .bind(google_fonts_json)
+        .bind(now.to_rfc3339())
+        .execute(&self.pool)
+        .await
+        .context("Failed to update site config")?;
+
+        Ok(SiteConfig {
+            updated_at: Some(now),
+            ..config
+        })
+    }
+
+    /// Helper method to convert SqliteRow to SiteConfig
+    fn row_to_site_config(&self, row: &SqliteRow) -> Result<SiteConfig> {
+        let social_links_json: String = row.try_get("social_links")?;
+        let social_links: Vec<SocialLink> = serde_json::from_str(&social_links_json)?;
+
+        let google_fonts_json: String = row.try_get("google_fonts")?;
+        let google_fonts: Vec<String> = serde_json::from_str(&google_fonts_json)?;
+
+        Ok(SiteConfig {
+            id: Some(row.try_get("id")?),
+            site_title: row.try_get("site_title")?,
+            site_description: row.try_get("site_description")?,
+            site_logo: row.try_get("site_logo")?,
+            favicon: row.try_get("favicon")?,
+            author_name: row.try_get("author_name")?,
+            author_email: row.try_get("author_email")?,
+            author_bio: row.try_get("author_bio")?,
+            social_links,
+            google_analytics_id: row.try_get("google_analytics_id")?,
+            google_fonts,
+            created_at: DateTime::parse_from_rfc3339(row.try_get("created_at")?)
+                .context("Invalid created_at timestamp")?
+                .with_timezone(&Utc).into(),
+            updated_at: DateTime::parse_from_rfc3339(row.try_get("updated_at")?)
+                .context("Invalid updated_at timestamp")?
+                .with_timezone(&Utc).into(),
         })
     }
 }
