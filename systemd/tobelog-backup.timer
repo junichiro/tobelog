@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Tobelog Backup Daily at 2 AM
+Documentation=https://github.com/junichiro/tobelog
+Requires=tobelog-backup.service
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

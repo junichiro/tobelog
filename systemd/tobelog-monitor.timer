@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Tobelog Monitoring Every 5 Minutes
+Documentation=https://github.com/junichiro/tobelog
+Requires=tobelog-monitor.service
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

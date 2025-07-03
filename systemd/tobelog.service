@@ -1,0 +1,79 @@
+[Unit]
+Description=Personal Blog System (tobelog)
+Documentation=https://github.com/junichiro/tobelog
+After=network.target network-online.target
+Wants=network-online.target
+Requires=network.target
+
+[Service]
+Type=simple
+User=tobelog
+Group=tobelog
+ExecStart=/usr/local/bin/tobelog
+ExecReload=/bin/kill -HUP $MAINPID
+
+# Environment configuration
+Environment="RUST_LOG=info"
+Environment="SERVER_HOST=0.0.0.0"
+Environment="SERVER_PORT=3000"
+Environment="DATABASE_URL=sqlite:///var/lib/tobelog/blog.db"
+EnvironmentFile=-/etc/tobelog/environment
+
+# Working directory and file paths
+WorkingDirectory=/var/lib/tobelog
+RuntimeDirectory=tobelog
+StateDirectory=tobelog
+LogsDirectory=tobelog
+ConfigurationDirectory=tobelog
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+PrivateDevices=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+
+# Network security (allow outbound connections for Dropbox API)
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# File system access
+ReadWritePaths=/var/lib/tobelog
+ReadOnlyPaths=/etc/tobelog
+
+# Capabilities
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# System call filtering
+SystemCallFilter=@system-service @network-io
+SystemCallFilter=~@debug @mount @cpu-emulation @obsolete @privileged @reboot @swap @raw-io
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Process limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Standard I/O
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tobelog
+
+# Kill settings
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

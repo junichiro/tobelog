@@ -1,0 +1,31 @@
+[Unit]
+Description=Tobelog Daily Backup
+Documentation=https://github.com/junichiro/tobelog
+After=tobelog.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/tobelog-backup.sh --compress --retention 30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tobelog-backup
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+PrivateDevices=yes
+RemoveIPC=yes
+
+# File system access (backup needs broader access)
+ReadOnlyPaths=/etc/tobelog
+ReadOnlyPaths=/var/lib/tobelog
+ReadOnlyPaths=/var/log/tobelog
+
+# System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@debug @mount @cpu-emulation @obsolete @privileged @reboot @swap @raw-io
