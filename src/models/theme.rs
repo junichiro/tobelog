@@ -30,11 +30,11 @@ pub struct ThemeSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ThemeLayout {
     #[serde(rename = "single")]
-    Single,    // Single column layout
+    Single, // Single column layout
     #[serde(rename = "sidebar")]
-    Sidebar,   // Two column with sidebar
+    Sidebar, // Two column with sidebar
     #[serde(rename = "magazine")]
-    Magazine,  // Magazine-style multi-column layout
+    Magazine, // Magazine-style multi-column layout
 }
 
 /// Header style configuration
@@ -43,7 +43,7 @@ pub struct HeaderStyle {
     pub height: String,
     pub background_color: Option<String>,
     pub text_color: Option<String>,
-    pub logo_position: String, // "left", "center", "right"
+    pub logo_position: String,    // "left", "center", "right"
     pub navigation_style: String, // "horizontal", "vertical", "hamburger"
     pub show_search: bool,
     pub sticky: bool,
@@ -204,11 +204,11 @@ impl Default for ThemeSettings {
             display_name: "Default Theme".to_string(),
             description: Some("Clean and professional default theme".to_string()),
             is_active: true,
-            primary_color: "#3B82F6".to_string(),   // Blue-500
-            secondary_color: "#6366F1".to_string(), // Indigo-500
+            primary_color: "#3B82F6".to_string(),    // Blue-500
+            secondary_color: "#6366F1".to_string(),  // Indigo-500
             background_color: "#FFFFFF".to_string(), // White
-            text_color: "#1F2937".to_string(),      // Gray-800
-            accent_color: "#F59E0B".to_string(),    // Amber-500
+            text_color: "#1F2937".to_string(),       // Gray-800
+            accent_color: "#F59E0B".to_string(),     // Amber-500
             font_family: "Inter, system-ui, sans-serif".to_string(),
             heading_font: Some("Inter, system-ui, sans-serif".to_string()),
             font_size_base: "16px".to_string(),
@@ -329,7 +329,10 @@ impl ThemeSettings {
             },
             CssVariable {
                 name: "--font-family-heading".to_string(),
-                value: format!("'{}'", self.heading_font.as_ref().unwrap_or(&self.font_family)),
+                value: format!(
+                    "'{}'",
+                    self.heading_font.as_ref().unwrap_or(&self.font_family)
+                ),
                 description: Some("Heading font family".to_string()),
                 category: "fonts".to_string(),
             },
@@ -353,13 +356,13 @@ impl ThemeSettings {
     pub fn to_css(&self) -> String {
         let variables = self.to_css_variables();
         let mut css = String::from(":root {\n");
-        
+
         for var in variables {
             css.push_str(&format!("  {}: {};\n", var.name, var.value));
         }
-        
+
         css.push_str("}\n\n");
-        
+
         // Add layout-specific styles
         match self.layout {
             ThemeLayout::Single => {
@@ -373,14 +376,14 @@ impl ThemeSettings {
                 css.push_str(".layout-magazine { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }\n");
             }
         }
-        
+
         // Add custom CSS if provided
         if let Some(custom_css) = &self.custom_css {
             css.push('\n');
             css.push_str("/* Custom CSS */\n");
             css.push_str(custom_css);
         }
-        
+
         css
     }
 }

@@ -1,15 +1,13 @@
 use anyhow::Result;
-use std::sync::Arc;
 use std::env;
-use tokio::fs;
+use std::sync::Arc;
 use tobelog::{Config, DropboxClient};
-use tracing::{info, error, Level};
+use tokio::fs;
+use tracing::{error, info, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
@@ -38,7 +36,7 @@ async fn main() -> Result<()> {
 
     // Upload to Dropbox posts folder
     let dropbox_path = format!("/BlogStorage/posts/{}", filename);
-    
+
     match dropbox_client.upload_file(&dropbox_path, &content).await {
         Ok(metadata) => {
             info!("✅ Successfully uploaded to Dropbox!");

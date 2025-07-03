@@ -1,11 +1,11 @@
 // Handlers module for HTTP request processing
 
-pub mod posts;
-pub mod api;
 pub mod admin;
-pub mod version;
-pub mod theme;
+pub mod api;
 pub mod performance;
+pub mod posts;
+pub mod theme;
+pub mod version;
 
 // Re-export specific items as needed
 // pub use posts::*;

@@ -1,6 +1,6 @@
 version: '3.8'
 
-# Production environment override
+# Production environment override with SSL/TLS support
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.production.yml up
 
 services:
@@ -53,6 +53,54 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  nginx:
+    image: nginx:alpine
+    container_name: tobelog-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - letsencrypt_certs:/etc/letsencrypt:ro
+      - letsencrypt_www:/var/www/html
+      - blog_static:/var/lib/blog/static:ro
+      - blog_media:/var/lib/blog/media:ro
+    depends_on:
+      - tobelog
+    networks:
+      - tobelog-production-network
+    # nginx health check
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # nginx logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: tobelog-certbot
+    volumes:
+      - letsencrypt_certs:/etc/letsencrypt
+      - letsencrypt_www:/var/www/html
+    depends_on:
+      - nginx
+    # Automatic certificate renewal every 12 hours
+    # For initial setup, run: docker-compose exec certbot certbot certonly --webroot -w /var/www/html -d your-domain.com
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --webroot -w /var/www/html --post-hook \"nginx -s reload\"; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   tobelog-production-network:
     driver: bridge
@@ -62,3 +110,15 @@ volumes:
   blog_data_production:
     driver: local
     name: tobelog-blog-data-production
+  letsencrypt_certs:
+    driver: local
+    name: tobelog-letsencrypt-certs
+  letsencrypt_www:
+    driver: local
+    name: tobelog-letsencrypt-www
+  blog_static:
+    driver: local
+    name: tobelog-static-files
+  blog_media:
+    driver: local
+    name: tobelog-media-files

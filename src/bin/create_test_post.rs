@@ -1,15 +1,13 @@
 use anyhow::Result;
 use chrono::Utc;
 use std::sync::Arc;
-use tobelog::{BlogStorageService, Config, DropboxClient};
 use tobelog::services::blog_storage::{BlogPost, BlogPostMetadata};
+use tobelog::{BlogStorageService, Config, DropboxClient};
 use tracing::{info, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
@@ -25,11 +23,18 @@ async fn main() -> Result<()> {
         title: "初めての投稿".to_string(),
         published: true,
         category: Some("tech".to_string()),
-        tags: vec!["rust".to_string(), "blog".to_string(), "markdown".to_string()],
+        tags: vec![
+            "rust".to_string(),
+            "blog".to_string(),
+            "markdown".to_string(),
+        ],
         author: Some("Tobe Junichiro".to_string()),
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        excerpt: Some("tobelogでの初めての投稿です。Rustで作ったブログシステムの動作テストを行います。".to_string()),
+        excerpt: Some(
+            "tobelogでの初めての投稿です。Rustで作ったブログシステムの動作テストを行います。"
+                .to_string(),
+        ),
     };
 
     // Create test post content
@@ -78,7 +83,10 @@ tobelogブログシステムへようこそ！
 
     info!("✅ Test post created successfully!");
     info!("🌐 You can now view it at: http://localhost:3000/");
-    info!("📖 Direct link: http://localhost:3000/posts/{}/first-post", Utc::now().format("%Y"));
+    info!(
+        "📖 Direct link: http://localhost:3000/posts/{}/first-post",
+        Utc::now().format("%Y")
+    );
 
     Ok(())
 }

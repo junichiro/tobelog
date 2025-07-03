@@ -18,12 +18,30 @@ build/
 *.log
 
 # Rust
-/target
+target/
+**/*.rs.bk
+Cargo.lock
 
 # Environment
-/.env
+.env
+*.env
 
 # Database
-/blog.db
-/blog.db-shm
-/blog.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# SSL certificates (Let's Encrypt)
+/certs/
+/letsencrypt/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# System files
+.system/

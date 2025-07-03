@@ -125,7 +125,7 @@ impl PostMetadata {
         slug: String,
     ) -> Self {
         let now = Utc::now();
-        
+
         let title = frontmatter
             .get("title")
             .and_then(|v| v.as_str())
@@ -223,11 +223,20 @@ impl PostMetadata {
 
         // Collect custom fields (anything not in standard fields)
         let standard_fields = [
-            "title", "tags", "category", "published", "featured", 
-            "author", "excerpt", "media", "created_at", "updated_at", 
-            "published_at", "version"
+            "title",
+            "tags",
+            "category",
+            "published",
+            "featured",
+            "author",
+            "excerpt",
+            "media",
+            "created_at",
+            "updated_at",
+            "published_at",
+            "version",
         ];
-        
+
         let custom_fields = frontmatter
             .iter()
             .filter(|(key, _)| !standard_fields.contains(&key.as_str()))
@@ -257,53 +266,84 @@ impl PostMetadata {
     pub fn to_frontmatter(&self) -> HashMap<String, serde_yaml::Value> {
         let mut frontmatter = HashMap::new();
 
-        frontmatter.insert("title".to_string(), serde_yaml::Value::String(self.title.clone()));
-        
+        frontmatter.insert(
+            "title".to_string(),
+            serde_yaml::Value::String(self.title.clone()),
+        );
+
         if let Some(created_at) = self.created_at {
-            frontmatter.insert("created_at".to_string(), 
-                serde_yaml::to_value(created_at).unwrap_or(serde_yaml::Value::Null));
+            frontmatter.insert(
+                "created_at".to_string(),
+                serde_yaml::to_value(created_at).unwrap_or(serde_yaml::Value::Null),
+            );
         }
-        
+
         if let Some(updated_at) = self.updated_at {
-            frontmatter.insert("updated_at".to_string(), 
-                serde_yaml::to_value(updated_at).unwrap_or(serde_yaml::Value::Null));
+            frontmatter.insert(
+                "updated_at".to_string(),
+                serde_yaml::to_value(updated_at).unwrap_or(serde_yaml::Value::Null),
+            );
         }
 
         if let Some(published_at) = self.published_at {
-            frontmatter.insert("published_at".to_string(), 
-                serde_yaml::to_value(published_at).unwrap_or(serde_yaml::Value::Null));
+            frontmatter.insert(
+                "published_at".to_string(),
+                serde_yaml::to_value(published_at).unwrap_or(serde_yaml::Value::Null),
+            );
         }
 
         if let Some(category) = &self.category {
-            frontmatter.insert("category".to_string(), serde_yaml::Value::String(category.clone()));
+            frontmatter.insert(
+                "category".to_string(),
+                serde_yaml::Value::String(category.clone()),
+            );
         }
 
         if !self.tags.is_empty() {
-            frontmatter.insert("tags".to_string(), 
-                serde_yaml::to_value(&self.tags).unwrap_or(serde_yaml::Value::Null));
+            frontmatter.insert(
+                "tags".to_string(),
+                serde_yaml::to_value(&self.tags).unwrap_or(serde_yaml::Value::Null),
+            );
         }
 
-        frontmatter.insert("published".to_string(), serde_yaml::Value::Bool(self.published));
-        
+        frontmatter.insert(
+            "published".to_string(),
+            serde_yaml::Value::Bool(self.published),
+        );
+
         if self.featured {
-            frontmatter.insert("featured".to_string(), serde_yaml::Value::Bool(self.featured));
+            frontmatter.insert(
+                "featured".to_string(),
+                serde_yaml::Value::Bool(self.featured),
+            );
         }
 
         if let Some(author) = &self.author {
-            frontmatter.insert("author".to_string(), serde_yaml::Value::String(author.clone()));
+            frontmatter.insert(
+                "author".to_string(),
+                serde_yaml::Value::String(author.clone()),
+            );
         }
 
         if let Some(excerpt) = &self.excerpt {
-            frontmatter.insert("excerpt".to_string(), serde_yaml::Value::String(excerpt.clone()));
+            frontmatter.insert(
+                "excerpt".to_string(),
+                serde_yaml::Value::String(excerpt.clone()),
+            );
         }
 
         if !self.media.is_empty() {
-            frontmatter.insert("media".to_string(), 
-                serde_yaml::to_value(&self.media).unwrap_or(serde_yaml::Value::Null));
+            frontmatter.insert(
+                "media".to_string(),
+                serde_yaml::to_value(&self.media).unwrap_or(serde_yaml::Value::Null),
+            );
         }
 
         if self.version > 1 {
-            frontmatter.insert("version".to_string(), serde_yaml::Value::Number(self.version.into()));
+            frontmatter.insert(
+                "version".to_string(),
+                serde_yaml::Value::Number(self.version.into()),
+            );
         }
 
         // Add custom fields
@@ -366,7 +406,7 @@ mod tests {
     #[test]
     fn test_post_metadata_creation() {
         let metadata = PostMetadata::new("Test Post".to_string(), "test-post".to_string());
-        
+
         assert_eq!(metadata.title, "Test Post");
         assert_eq!(metadata.slug, "test-post");
         assert!(!metadata.published);
@@ -377,10 +417,15 @@ mod tests {
     #[test]
     fn test_from_frontmatter() {
         let mut frontmatter = HashMap::new();
-        frontmatter.insert("title".to_string(), serde_yaml::Value::String("Test Title".to_string()));
+        frontmatter.insert(
+            "title".to_string(),
+            serde_yaml::Value::String("Test Title".to_string()),
+        );
         frontmatter.insert("published".to_string(), serde_yaml::Value::Bool(true));
-        frontmatter.insert("tags".to_string(), 
-            serde_yaml::to_value(vec!["rust", "blog"]).unwrap());
+        frontmatter.insert(
+            "tags".to_string(),
+            serde_yaml::to_value(vec!["rust", "blog"]).unwrap(),
+        );
 
         let metadata = PostMetadata::from_frontmatter(&frontmatter, "test-slug".to_string());
 
@@ -393,14 +438,14 @@ mod tests {
     #[test]
     fn test_publish_unpublish() {
         let mut metadata = PostMetadata::new("Test".to_string(), "test".to_string());
-        
+
         assert!(!metadata.published);
         assert!(metadata.published_at.is_none());
-        
+
         metadata.publish();
         assert!(metadata.published);
         assert!(metadata.published_at.is_some());
-        
+
         metadata.unpublish();
         assert!(!metadata.published);
         assert!(metadata.published_at.is_none());

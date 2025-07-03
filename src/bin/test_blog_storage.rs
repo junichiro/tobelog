@@ -1,15 +1,13 @@
 use anyhow::Result;
 use chrono::Utc;
 use std::sync::Arc;
-use tobelog::{BlogStorageService, Config, DropboxClient};
 use tobelog::services::blog_storage::{BlogPost, BlogPostMetadata};
+use tobelog::{BlogStorageService, Config, DropboxClient};
 use tracing::{error, info, warn, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
@@ -68,7 +66,9 @@ async fn main() -> Result<()> {
             tags: vec!["test".to_string(), "blog".to_string(), "rust".to_string()],
             published: false, // Start as draft
             author: Some("Tobelog Test".to_string()),
-            excerpt: Some("This is a test blog post to verify the blog storage service.".to_string()),
+            excerpt: Some(
+                "This is a test blog post to verify the blog storage service.".to_string(),
+            ),
         },
         content: r#"# Test Blog Post
 
@@ -89,7 +89,8 @@ fn hello_world() {
 }
 ```
 
-This post demonstrates that the blog storage service is working correctly!"#.to_string(),
+This post demonstrates that the blog storage service is working correctly!"#
+            .to_string(),
         dropbox_path: String::new(), // Will be set when saved
         file_metadata: None,
     };
@@ -123,7 +124,10 @@ This post demonstrates that the blog storage service is working correctly!"#.to_
     match blog_storage.get_post_by_slug("test-blog-post").await {
         Ok(Some(post)) => {
             info!("✅ Found post: {}", post.metadata.title);
-            info!("  📅 Created: {}", post.metadata.created_at.format("%Y-%m-%d %H:%M"));
+            info!(
+                "  📅 Created: {}",
+                post.metadata.created_at.format("%Y-%m-%d %H:%M")
+            );
             info!("  🏷️  Tags: {}", post.metadata.tags.join(", "));
             info!("  📊 Published: {}", post.metadata.published);
         }
@@ -175,7 +179,10 @@ This post demonstrates that the blog storage service is working correctly!"#.to_
                 info!("  📝 Draft posts: {}", drafts);
             }
             if let Some(categories) = stats.get("categories") {
-                info!("  🗂️  Categories: {}", serde_json::to_string_pretty(categories)?);
+                info!(
+                    "  🗂️  Categories: {}",
+                    serde_json::to_string_pretty(categories)?
+                );
             }
             if let Some(tags) = stats.get("tags") {
                 info!("  🏷️  Tags: {}", serde_json::to_string_pretty(tags)?);

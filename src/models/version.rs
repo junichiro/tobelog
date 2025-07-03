@@ -129,12 +129,12 @@ impl PostVersion {
                 if self.title != prev.title {
                     return true;
                 }
-                
+
                 // Category changed
                 if self.category != prev.category {
                     return true;
                 }
-                
+
                 // Content changed significantly (more than 20% difference)
                 let content_diff_ratio = self.calculate_content_diff_ratio(&prev.content);
                 content_diff_ratio > 0.2
@@ -147,27 +147,29 @@ impl PostVersion {
     fn calculate_content_diff_ratio(&self, other_content: &str) -> f64 {
         let self_len = self.content.len() as f64;
         let other_len = other_content.len() as f64;
-        
+
         if self_len == 0.0 && other_len == 0.0 {
             return 0.0;
         }
-        
+
         if self_len == 0.0 || other_len == 0.0 {
             return 1.0;
         }
-        
+
         // Simple difference calculation based on length and character differences
         let len_diff = (self_len - other_len).abs() / self_len.max(other_len);
-        
+
         // Count character differences (simple approximation)
-        let char_diff = self.content.chars()
+        let char_diff = self
+            .content
+            .chars()
             .zip(other_content.chars())
             .filter(|(a, b)| a != b)
             .count() as f64;
-        
+
         let max_len = self.content.len().max(other_content.len()) as f64;
         let char_diff_ratio = char_diff / max_len;
-        
+
         // Combine length and character differences
         (len_diff + char_diff_ratio) / 2.0
     }

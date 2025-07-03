@@ -9,9 +9,7 @@ use tobelog::services::{DatabaseService, MarkdownService};
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("🧪 Testing Markdown and Database functionality...");
 
@@ -66,16 +64,16 @@ fn main() {
 That's all for now!"#;
 
     let parsed = markdown_service.parse_markdown(test_content)?;
-    
+
     info!("Parsed frontmatter fields: {}", parsed.frontmatter.len());
     info!("Generated HTML length: {} bytes", parsed.html.len());
-    
+
     // Test field extraction
     let title = markdown_service.extract_title(&parsed.frontmatter, &parsed.content);
     let tags = markdown_service.extract_tags(&parsed.frontmatter);
     let category = markdown_service.extract_category(&parsed.frontmatter);
     let published = markdown_service.extract_published(&parsed.frontmatter);
-    
+
     info!("Extracted title: {}", title);
     info!("Extracted tags: {:?}", tags);
     info!("Extracted category: {:?}", category);
@@ -86,7 +84,7 @@ That's all for now!"#;
     assert!(parsed.html.contains("<strong>first blog post</strong>"));
     assert!(parsed.html.contains("rust"));
     assert!(parsed.html.contains("<blockquote>"));
-    
+
     info!("Generated HTML:\n{}", parsed.html);
 
     info!("✅ Markdown processing tests passed!");
@@ -154,7 +152,10 @@ async fn test_database_operations() -> Result<()> {
     let published_posts = db_service.list_posts(published_filter).await?;
     info!("Published posts found: {}", published_posts.len());
     for post in &published_posts {
-        info!("Published post: {} - published: {}", post.title, post.published);
+        info!(
+            "Published post: {} - published: {}",
+            post.title, post.published
+        );
     }
     assert_eq!(published_posts.len(), 1);
     assert_eq!(published_posts[0].slug, "test-post-1");
@@ -253,7 +254,7 @@ That's how it works!"#;
 
     // Process markdown
     let parsed = markdown_service.parse_markdown(markdown_content)?;
-    
+
     // Extract metadata and create post
     let create_data = CreatePost {
         slug: "integration-test".to_string(),
@@ -270,7 +271,7 @@ That's how it works!"#;
     };
 
     let post = db_service.create_post(create_data).await?;
-    
+
     info!("Created integrated post:");
     info!("  ID: {}", post.id);
     info!("  Title: {}", post.title);

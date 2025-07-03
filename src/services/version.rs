@@ -3,8 +3,8 @@ use chrono::Utc;
 use tracing::{debug, info};
 
 use crate::models::{
-    Post, PostVersion, CreatePostVersion, VersionHistory, VersionSummary, 
-    VersionDiff, VersionFilters
+    CreatePostVersion, Post, PostVersion, VersionDiff, VersionFilters, VersionHistory,
+    VersionSummary,
 };
 use crate::services::{DatabaseService, MarkdownService};
 
@@ -18,14 +18,15 @@ pub struct VersionService {
 impl VersionService {
     /// Create a new version service
     pub fn new(database: DatabaseService, markdown: MarkdownService) -> Self {
-        Self {
-            database,
-            markdown,
-        }
+        Self { database, markdown }
     }
 
     /// Create a version snapshot of a post
-    pub async fn create_version(&self, post: &Post, change_summary: Option<String>) -> Result<PostVersion> {
+    pub async fn create_version(
+        &self,
+        post: &Post,
+        change_summary: Option<String>,
+    ) -> Result<PostVersion> {
         debug!("Creating version {} for post {}", post.version, post.id);
 
         let create_version = CreatePostVersion {
@@ -50,7 +51,10 @@ impl VersionService {
         debug!("Getting version history for post {}", post_id);
 
         // Get the current post info
-        let post = self.database.get_post_by_id(post_id).await?
+        let post = self
+            .database
+            .get_post_by_id(post_id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Post not found"))?;
 
         // Get all versions for this post
@@ -58,9 +62,9 @@ impl VersionService {
             post_id: Some(post_id),
             ..Default::default()
         };
-        
+
         let versions = self.database.list_post_versions(filters).await?;
-        
+
         // Convert to version summaries
         let version_summaries: Vec<VersionSummary> = versions
             .into_iter()
@@ -86,20 +90,38 @@ impl VersionService {
     }
 
     /// Get a specific version of a post
-    pub async fn get_version(&self, post_id: uuid::Uuid, version: i32) -> Result<Option<PostVersion>> {
+    pub async fn get_version(
+        &self,
+        post_id: uuid::Uuid,
+        version: i32,
+    ) -> Result<Option<PostVersion>> {
         debug!("Getting version {} for post {}", version, post_id);
 
         self.database.get_post_version(post_id, version).await
     }
 
     /// Compare two versions of a post
-    pub async fn compare_versions(&self, post_id: uuid::Uuid, version_from: i32, version_to: i32) -> Result<VersionDiff> {
-        debug!("Comparing versions {} and {} for post {}", version_from, version_to, post_id);
+    pub async fn compare_versions(
+        &self,
+        post_id: uuid::Uuid,
+        version_from: i32,
+        version_to: i32,
+    ) -> Result<VersionDiff> {
+        debug!(
+            "Comparing versions {} and {} for post {}",
+            version_from, version_to, post_id
+        );
 
-        let version_from_data = self.database.get_post_version(post_id, version_from).await?
+        let version_from_data = self
+            .database
+            .get_post_version(post_id, version_from)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Version {} not found", version_from))?;
 
-        let version_to_data = self.database.get_post_version(post_id, version_to).await?
+        let version_to_data = self
+            .database
+            .get_post_version(post_id, version_to)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Version {} not found", version_to))?;
 
         // Generate diffs
@@ -109,7 +131,8 @@ impl VersionService {
             None
         };
 
-        let content_diff = self.generate_text_diff(&version_from_data.content, &version_to_data.content);
+        let content_diff =
+            self.generate_text_diff(&version_from_data.content, &version_to_data.content);
 
         // Generate metadata diff (simplified)
         let metadata_diff = if version_from_data.metadata != version_to_data.metadata {
@@ -134,24 +157,36 @@ impl VersionService {
     }
 
     /// Restore a post to a previous version
-    /// 
+    ///
     /// Note: This operation involves multiple database writes and should ideally be wrapped
     /// in a database transaction to ensure atomicity. Currently, we rely on manual error
     /// handling and cleanup, but this could be improved with proper transaction support.
-    pub async fn restore_version(&self, post_id: uuid::Uuid, target_version: i32, change_summary: Option<String>) -> Result<Post> {
+    pub async fn restore_version(
+        &self,
+        post_id: uuid::Uuid,
+        target_version: i32,
+        change_summary: Option<String>,
+    ) -> Result<Post> {
         debug!("Restoring post {} to version {}", post_id, target_version);
 
         // Get the target version first to fail early if it doesn't exist
-        let target_version_data = self.database.get_post_version(post_id, target_version).await?
+        let target_version_data = self
+            .database
+            .get_post_version(post_id, target_version)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Target version {} not found", target_version))?;
 
         // Get the current post and validate it exists
-        let mut current_post = self.database.get_post_by_id(post_id).await?
+        let mut current_post = self
+            .database
+            .get_post_by_id(post_id)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Post not found"))?;
 
         // Create a version snapshot of current state before restoring
         let current_summary = format!("Auto-backup before restore to version {}", target_version);
-        self.create_version(&current_post, Some(current_summary)).await
+        self.create_version(&current_post, Some(current_summary))
+            .await
             .context("Failed to create backup version before restore")?;
 
         // Update the post with target version data
@@ -178,22 +213,31 @@ impl VersionService {
             dropbox_path: Some(current_post.dropbox_path.clone()),
         };
 
-        let updated_post = self.database.update_post(post_id, update_data).await?
+        let updated_post = self
+            .database
+            .update_post(post_id, update_data)
+            .await?
             .ok_or_else(|| anyhow::anyhow!("Failed to update post during restore"))?;
 
         // Create a version for the restore
-        let restore_summary = change_summary
-            .unwrap_or_else(|| format!("Restored to version {}", target_version));
-        self.create_version(&updated_post, Some(restore_summary)).await?;
+        let restore_summary =
+            change_summary.unwrap_or_else(|| format!("Restored to version {}", target_version));
+        self.create_version(&updated_post, Some(restore_summary))
+            .await?;
 
-        info!("Successfully restored post {} to version {}", post_id, target_version);
+        info!(
+            "Successfully restored post {} to version {}",
+            post_id, target_version
+        );
         Ok(updated_post)
     }
 
     /// Auto-create version when post is updated
     pub async fn auto_version_on_update(&self, old_post: &Post, new_post: &Post) -> Result<()> {
-        debug!("Auto-versioning post {} from version {} to {}", 
-               old_post.id, old_post.version, new_post.version);
+        debug!(
+            "Auto-versioning post {} from version {} to {}",
+            old_post.id, old_post.version, new_post.version
+        );
 
         // Generate automatic change summary
         let change_summary = self.generate_change_summary(old_post, new_post);
@@ -205,7 +249,7 @@ impl VersionService {
     }
 
     /// Generate a text diff using a basic but more accurate algorithm
-    /// 
+    ///
     /// Note: This is a simplified implementation. For production use, consider using
     /// a dedicated diff library like `similar` or `dissimilar` for better performance
     /// and more sophisticated algorithms like Myers' diff algorithm.
@@ -221,7 +265,7 @@ impl VersionService {
         let mut diff = Vec::new();
         let mut i = 0; // index for from_lines
         let mut j = 0; // index for to_lines
-        
+
         while i < from_lines.len() || j < to_lines.len() {
             match (from_lines.get(i), to_lines.get(j)) {
                 (Some(from_line), Some(to_line)) => {
@@ -233,7 +277,7 @@ impl VersionService {
                     } else {
                         // Lines differ - look ahead to see if we can find a match
                         let mut found_match = false;
-                        
+
                         // Look for the to_line in the next few from_lines (deletion case)
                         for look_ahead in (i + 1)..=(i + 3).min(from_lines.len()) {
                             if from_lines.get(look_ahead) == Some(to_line) {
@@ -250,7 +294,7 @@ impl VersionService {
                                 break;
                             }
                         }
-                        
+
                         if !found_match {
                             // Look for the from_line in the next few to_lines (insertion case)
                             for look_ahead in (j + 1)..=(j + 3).min(to_lines.len()) {
@@ -269,7 +313,7 @@ impl VersionService {
                                 }
                             }
                         }
-                        
+
                         if !found_match {
                             // No match found, treat as substitution
                             diff.push(format!("- {}", from_line));
@@ -350,13 +394,26 @@ impl VersionService {
     }
 
     /// Clean up old versions (keep last N versions)
-    pub async fn cleanup_old_versions(&self, post_id: uuid::Uuid, keep_versions: i32) -> Result<usize> {
-        debug!("Cleaning up old versions for post {}, keeping {} versions", post_id, keep_versions);
+    pub async fn cleanup_old_versions(
+        &self,
+        post_id: uuid::Uuid,
+        keep_versions: i32,
+    ) -> Result<usize> {
+        debug!(
+            "Cleaning up old versions for post {}, keeping {} versions",
+            post_id, keep_versions
+        );
 
-        let deleted_count = self.database.cleanup_old_versions(post_id, keep_versions).await?;
-        
+        let deleted_count = self
+            .database
+            .cleanup_old_versions(post_id, keep_versions)
+            .await?;
+
         if deleted_count > 0 {
-            info!("Cleaned up {} old versions for post {}", deleted_count, post_id);
+            info!(
+                "Cleaned up {} old versions for post {}",
+                deleted_count, post_id
+            );
         }
 
         Ok(deleted_count)

@@ -1,13 +1,11 @@
 use anyhow::Result;
-use tobelog::services::DropboxClient;
 use tobelog::config::Config;
-use tracing::{info, error, Level};
+use tobelog::services::DropboxClient;
+use tracing::{error, info, Level};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     dotenv::dotenv().ok();
 
@@ -52,11 +50,11 @@ async fn main() -> Result<()> {
         Ok(result) => {
             info!("✅ Folder listing successful!");
             info!("📂 Found {} items in root folder", result.entries.len());
-            
+
             for entry in result.entries.iter().take(5) {
                 info!("  - {}", entry.name);
             }
-            
+
             if result.entries.len() > 5 {
                 info!("  ... and {} more items", result.entries.len() - 5);
             }

@@ -14,28 +14,35 @@ impl TemplateService {
     /// Create a new template service
     pub fn new() -> Result<Self> {
         info!("Initializing Tera template engine");
-        
+
         let mut tera = Tera::new("templates/**/*.html")
             .context("Failed to initialize Tera template engine")?;
-        
+
         // Register custom filters
         tera.register_filter("truncate", truncate_filter);
-        
+
         info!("Template engine initialized successfully");
-        debug!("Available templates: {:?}", tera.get_template_names().collect::<Vec<_>>());
-        
+        debug!(
+            "Available templates: {:?}",
+            tera.get_template_names().collect::<Vec<_>>()
+        );
+
         Ok(Self { tera })
     }
 
     /// Render a template with context
     pub fn render<T: Serialize>(&self, template_name: &str, context: &T) -> Result<String> {
         debug!("Rendering template: {}", template_name);
-        
-        let result = self.tera
+
+        let result = self
+            .tera
             .render(template_name, &tera::Context::from_serialize(context)?)
             .with_context(|| format!("Failed to render template: {}", template_name))?;
-        
-        debug!("Template rendered successfully: {} characters", result.len());
+
+        debug!(
+            "Template rendered successfully: {} characters",
+            result.len()
+        );
         Ok(result)
     }
 
@@ -45,20 +52,27 @@ impl TemplateService {
         &self,
         template_name: &str,
         context: &T,
-        additional_context: HashMap<String, tera::Value>
+        additional_context: HashMap<String, tera::Value>,
     ) -> Result<String> {
-        debug!("Rendering template with additional context: {}", template_name);
-        
+        debug!(
+            "Rendering template with additional context: {}",
+            template_name
+        );
+
         let mut tera_context = tera::Context::from_serialize(context)?;
         for (key, value) in additional_context {
             tera_context.insert(key, &value);
         }
-        
-        let result = self.tera
+
+        let result = self
+            .tera
             .render(template_name, &tera_context)
             .with_context(|| format!("Failed to render template: {}", template_name))?;
-        
-        debug!("Template rendered successfully: {} characters", result.len());
+
+        debug!(
+            "Template rendered successfully: {} characters",
+            result.len()
+        );
         Ok(result)
     }
 
@@ -76,12 +90,13 @@ impl Default for TemplateService {
 }
 
 /// Custom filter to truncate text
-fn truncate_filter(value: &tera::Value, args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+fn truncate_filter(
+    value: &tera::Value,
+    args: &HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
     let s = value.as_str().unwrap_or("");
-    let length = args.get("length")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(100) as usize;
-    
+    let length = args.get("length").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+
     if s.chars().count() <= length {
         Ok(tera::Value::String(s.to_string()))
     } else {
@@ -245,11 +260,19 @@ impl From<crate::models::PostStats> for BlogStats {
             total_posts: stats.total_posts,
             published_posts: stats.published_posts,
             featured_posts: stats.featured_posts,
-            categories: stats.categories.into_iter().map(CategoryStat::from).collect(),
-            tags: stats.tags.into_iter().map(|tag| TagStat {
-                name: tag.name,
-                count: tag.count,
-            }).collect(),
+            categories: stats
+                .categories
+                .into_iter()
+                .map(CategoryStat::from)
+                .collect(),
+            tags: stats
+                .tags
+                .into_iter()
+                .map(|tag| TagStat {
+                    name: tag.name,
+                    count: tag.count,
+                })
+                .collect(),
         }
     }
 }
@@ -269,10 +292,10 @@ mod tests {
     fn test_truncate_filter() {
         let mut args = HashMap::new();
         args.insert("length".to_string(), tera::Value::Number(10.into()));
-        
+
         let value = tera::Value::String("This is a long text that should be truncated".to_string());
         let result = truncate_filter(&value, &args).unwrap();
-        
+
         assert_eq!(result.as_str().unwrap(), "This is a ...");
     }
 }

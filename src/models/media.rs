@@ -180,7 +180,7 @@ impl Default for MediaConstraints {
                 "text/plain".to_string(),
                 "text/markdown".to_string(),
             ],
-            max_width: Some(3840), // 4K width
+            max_width: Some(3840),  // 4K width
             max_height: Some(2160), // 4K height
         }
     }

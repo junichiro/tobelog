@@ -1,22 +1,26 @@
+use crate::models::{
+    response::{
+        BlogStatsResponse, CategoryInfo, ErrorResponse, PostListResponse, PostResponse,
+        PostSummary, TagInfo,
+    },
+    BatchImportRequest, BatchImportResponse, CreatePost, LLMArticleImportRequest,
+    LLMArticleImportResponse, MediaFilters, MediaListResponse, MediaQuery, MediaUploadResponse,
+    PostFilters, UpdatePost,
+};
+use crate::services::{
+    BlogStorageService, DatabaseService, LLMImportService, MarkdownService, MediaService,
+};
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
     http::{header, StatusCode},
     response::{Json, Response},
-    body::Body,
 };
-use axum_extra::extract::{Multipart, multipart::Field};
+use axum_extra::extract::{multipart::Field, Multipart};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-use crate::models::{
-    response::{PostListResponse, PostResponse, PostSummary, ErrorResponse, 
-              BlogStatsResponse, CategoryInfo, TagInfo},
-    PostFilters, CreatePost, UpdatePost, LLMArticleImportRequest, LLMArticleImportResponse,
-    BatchImportRequest, BatchImportResponse, MediaQuery, MediaListResponse, 
-    MediaUploadResponse, MediaFilters
-};
-use crate::services::{DatabaseService, MarkdownService, BlogStorageService, LLMImportService, MediaService};
-use std::sync::Arc;
 
 /// Query parameters for post listing API
 #[derive(Debug, Deserialize)]
@@ -42,7 +46,7 @@ pub struct ApiState {
 /// GET /api/posts - List posts with pagination and filtering
 pub async fn list_posts_api(
     Query(query): Query<ApiPostQuery>,
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<PostListResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Listing posts with query: {:?}", query);
 
@@ -62,12 +66,15 @@ pub async fn list_posts_api(
     };
 
     // Get posts from database
-    let posts = state.database.list_posts(filters.clone()).await
+    let posts = state
+        .database
+        .list_posts(filters.clone())
+        .await
         .map_err(|e| {
             error!("Database error listing posts: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to load posts"))
+                Json(ErrorResponse::internal_error("Failed to load posts")),
             )
         })?;
 
@@ -79,13 +86,16 @@ pub async fn list_posts_api(
         featured: query.featured,
         ..Default::default()
     };
-    
-    let total_count = state.database.count_posts(count_filters).await
+
+    let total_count = state
+        .database
+        .count_posts(count_filters)
+        .await
         .map_err(|e| {
             error!("Database error counting posts: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to count posts"))
+                Json(ErrorResponse::internal_error("Failed to count posts")),
             )
         })?;
 
@@ -93,9 +103,7 @@ pub async fn list_posts_api(
     let total_pages = total.div_ceil(per_page);
 
     // Convert posts to summaries
-    let post_summaries: Vec<PostSummary> = posts.into_iter()
-        .map(PostSummary::from)
-        .collect();
+    let post_summaries: Vec<PostSummary> = posts.into_iter().map(PostSummary::from).collect();
 
     let response = PostListResponse {
         posts: post_summaries,
@@ -111,25 +119,27 @@ pub async fn list_posts_api(
 /// GET /api/posts/{slug} - Get individual post by slug
 pub async fn get_post_api(
     Path(slug): Path<String>,
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<PostResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting post by slug: {}", slug);
 
-    let post = state.database.get_post_by_slug(&slug).await
-        .map_err(|e| {
-            error!("Database error getting post {}: {}", slug, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Database error"))
-            )
-        })?;
+    let post = state.database.get_post_by_slug(&slug).await.map_err(|e| {
+        error!("Database error getting post {}: {}", slug, e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Database error")),
+        )
+    })?;
 
     let post = match post {
         Some(post) => post,
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found(format!("Post '{}' not found", slug)))
+                Json(ErrorResponse::not_found(format!(
+                    "Post '{}' not found",
+                    slug
+                ))),
             ));
         }
     };
@@ -140,18 +150,17 @@ pub async fn get_post_api(
 
 /// GET /api/blog/stats - Get blog statistics
 pub async fn blog_stats_api(
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<BlogStatsResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting blog stats");
 
-    let stats = state.database.get_post_stats().await
-        .map_err(|e| {
-            error!("Database error getting stats: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to load statistics"))
-            )
-        })?;
+    let stats = state.database.get_post_stats().await.map_err(|e| {
+        error!("Database error getting stats: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to load statistics")),
+        )
+    })?;
 
     // Get recent posts for the stats
     let recent_filters = PostFilters {
@@ -160,29 +169,35 @@ pub async fn blog_stats_api(
         ..Default::default()
     };
 
-    let recent_posts = state.database.list_posts(recent_filters).await
+    let recent_posts = state
+        .database
+        .list_posts(recent_filters)
+        .await
         .map_err(|e| {
             error!("Database error getting recent posts: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to load recent posts"))
+                Json(ErrorResponse::internal_error("Failed to load recent posts")),
             )
         })?;
 
-    let recent_summaries: Vec<PostSummary> = recent_posts.into_iter()
-        .map(PostSummary::from)
-        .collect();
+    let recent_summaries: Vec<PostSummary> =
+        recent_posts.into_iter().map(PostSummary::from).collect();
 
     // Convert categories
-    let categories: Vec<CategoryInfo> = stats.categories.into_iter()
+    let categories: Vec<CategoryInfo> = stats
+        .categories
+        .into_iter()
         .map(|cat| CategoryInfo {
             name: cat.name,
             count: cat.count,
         })
         .collect();
 
-    // Convert tags  
-    let tags: Vec<TagInfo> = stats.tags.into_iter()
+    // Convert tags
+    let tags: Vec<TagInfo> = stats
+        .tags
+        .into_iter()
         .map(|tag| TagInfo {
             name: tag.name,
             count: tag.count,
@@ -204,20 +219,21 @@ pub async fn blog_stats_api(
 
 /// GET /api/categories - List all categories
 pub async fn list_categories_api(
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<Vec<CategoryInfo>>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Listing categories");
 
-    let stats = state.database.get_post_stats().await
-        .map_err(|e| {
-            error!("Database error getting categories: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to load categories"))
-            )
-        })?;
+    let stats = state.database.get_post_stats().await.map_err(|e| {
+        error!("Database error getting categories: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to load categories")),
+        )
+    })?;
 
-    let categories: Vec<CategoryInfo> = stats.categories.into_iter()
+    let categories: Vec<CategoryInfo> = stats
+        .categories
+        .into_iter()
         .map(|cat| CategoryInfo {
             name: cat.name,
             count: cat.count,
@@ -229,20 +245,21 @@ pub async fn list_categories_api(
 
 /// GET /api/tags - List all tags
 pub async fn list_tags_api(
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<Vec<TagInfo>>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Listing tags");
 
-    let stats = state.database.get_post_stats().await
-        .map_err(|e| {
-            error!("Database error getting tags: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to load tags"))
-            )
-        })?;
+    let stats = state.database.get_post_stats().await.map_err(|e| {
+        error!("Database error getting tags: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to load tags")),
+        )
+    })?;
 
-    let tags: Vec<TagInfo> = stats.tags.into_iter()
+    let tags: Vec<TagInfo> = stats
+        .tags
+        .into_iter()
         .map(|tag| TagInfo {
             name: tag.name,
             count: tag.count,
@@ -255,7 +272,7 @@ pub async fn list_tags_api(
 /// GET /api/search - Search posts
 pub async fn search_posts_api(
     Query(query): Query<SearchQuery>,
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<PostListResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Searching posts with query: {:?}", query);
 
@@ -263,24 +280,27 @@ pub async fn search_posts_api(
     if search_query.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("Search query 'q' parameter is required"))
+            Json(ErrorResponse::bad_request(
+                "Search query 'q' parameter is required",
+            )),
         ));
     }
 
     let limit = query.limit.unwrap_or(20).min(100);
 
-    let posts = state.database.search_posts(&search_query, Some(limit as i64)).await
+    let posts = state
+        .database
+        .search_posts(&search_query, Some(limit as i64))
+        .await
         .map_err(|e| {
             error!("Database error searching posts: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Search failed"))
+                Json(ErrorResponse::internal_error("Search failed")),
             )
         })?;
 
-    let post_summaries: Vec<PostSummary> = posts.into_iter()
-        .map(PostSummary::from)
-        .collect();
+    let post_summaries: Vec<PostSummary> = posts.into_iter().map(PostSummary::from).collect();
 
     let total = post_summaries.len();
 
@@ -376,7 +396,7 @@ pub struct PostMetadata {
 /// POST /api/posts - Create a new post
 pub async fn create_post_api(
     State(state): State<ApiState>,
-    Json(request): Json<CreatePostRequest>
+    Json(request): Json<CreatePostRequest>,
 ) -> Result<Json<PostOperationResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!("API: Creating new post with title: {}", request.title);
 
@@ -384,39 +404,45 @@ pub async fn create_post_api(
     if request.title.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("Title cannot be empty"))
+            Json(ErrorResponse::bad_request("Title cannot be empty")),
         ));
     }
 
     if request.content.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("Content cannot be empty"))
+            Json(ErrorResponse::bad_request("Content cannot be empty")),
         ));
     }
 
     // Generate slug from title
     let slug = generate_slug(&request.title);
-    
+
     // Check if slug already exists
     if let Ok(Some(_)) = state.database.get_post_by_slug(&slug).await {
         return Err((
             StatusCode::CONFLICT,
-            Json(ErrorResponse::new("conflict", format!("Post with slug '{}' already exists", slug), 409))
+            Json(ErrorResponse::new(
+                "conflict",
+                format!("Post with slug '{}' already exists", slug),
+                409,
+            )),
         ));
     }
 
     // Parse markdown content to HTML
-    let parsed = state.markdown.parse_markdown(&request.content)
+    let parsed = state
+        .markdown
+        .parse_markdown(&request.content)
         .map_err(|e| {
             error!("Failed to parse markdown: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to parse markdown"))
+                Json(ErrorResponse::internal_error("Failed to parse markdown")),
             )
         })?;
     let html_content = parsed.html;
-    
+
     // Generate excerpt if not provided
     let excerpt = generate_excerpt(&request.content, 200);
 
@@ -442,14 +468,13 @@ pub async fn create_post_api(
     };
 
     // Save to database first
-    let post = state.database.create_post(create_data).await
-        .map_err(|e| {
-            error!("Database error creating post: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to create post"))
-            )
-        })?;
+    let post = state.database.create_post(create_data).await.map_err(|e| {
+        error!("Database error creating post: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to create post")),
+        )
+    })?;
 
     // Save to Dropbox using blog storage service
     let blog_post = crate::services::blog_storage::BlogPost {
@@ -494,40 +519,41 @@ pub async fn create_post_api(
 pub async fn update_post_api(
     Path(slug): Path<String>,
     State(state): State<ApiState>,
-    Json(request): Json<UpdatePostRequest>
+    Json(request): Json<UpdatePostRequest>,
 ) -> Result<Json<PostOperationResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!("API: Updating post with slug: {}", slug);
 
     // Get existing post
-    let existing_post = state.database.get_post_by_slug(&slug).await
-        .map_err(|e| {
-            error!("Database error getting post: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Database error"))
-            )
-        })?;
+    let existing_post = state.database.get_post_by_slug(&slug).await.map_err(|e| {
+        error!("Database error getting post: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Database error")),
+        )
+    })?;
 
     let existing_post = match existing_post {
         Some(post) => post,
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found(format!("Post '{}' not found", slug)))
+                Json(ErrorResponse::not_found(format!(
+                    "Post '{}' not found",
+                    slug
+                ))),
             ));
         }
     };
 
     // Update HTML content if content is being updated
     let html_content = if let Some(ref content) = request.content {
-        let parsed = state.markdown.parse_markdown(content)
-            .map_err(|e| {
-                error!("Failed to parse markdown: {}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse::internal_error("Failed to parse markdown"))
-                )
-            })?;
+        let parsed = state.markdown.parse_markdown(content).map_err(|e| {
+            error!("Failed to parse markdown: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to parse markdown")),
+            )
+        })?;
         Some(parsed.html)
     } else {
         None
@@ -548,12 +574,15 @@ pub async fn update_post_api(
     };
 
     // Update in database
-    let updated_post = state.database.update_post(existing_post.id, update_data).await
+    let updated_post = state
+        .database
+        .update_post(existing_post.id, update_data)
+        .await
         .map_err(|e| {
             error!("Database error updating post: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to update post"))
+                Json(ErrorResponse::internal_error("Failed to update post")),
             )
         })?;
 
@@ -589,8 +618,17 @@ pub async fn update_post_api(
 
     let response = PostOperationResponse {
         success: true,
-        slug: updated_post.as_ref().map(|p| p.slug.clone()).unwrap_or_else(|| slug.clone()),
-        message: format!("Post '{}' updated successfully", updated_post.as_ref().map(|p| p.title.as_str()).unwrap_or(&slug)),
+        slug: updated_post
+            .as_ref()
+            .map(|p| p.slug.clone())
+            .unwrap_or_else(|| slug.clone()),
+        message: format!(
+            "Post '{}' updated successfully",
+            updated_post
+                .as_ref()
+                .map(|p| p.title.as_str())
+                .unwrap_or(&slug)
+        ),
         post: updated_post.map(PostResponse::from),
     };
 
@@ -600,37 +638,42 @@ pub async fn update_post_api(
 /// DELETE /api/posts/{slug} - Delete a post
 pub async fn delete_post_api(
     Path(slug): Path<String>,
-    State(state): State<ApiState>
+    State(state): State<ApiState>,
 ) -> Result<Json<PostOperationResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!("API: Deleting post with slug: {}", slug);
 
     // Get existing post
-    let existing_post = state.database.get_post_by_slug(&slug).await
-        .map_err(|e| {
-            error!("Database error getting post: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Database error"))
-            )
-        })?;
+    let existing_post = state.database.get_post_by_slug(&slug).await.map_err(|e| {
+        error!("Database error getting post: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Database error")),
+        )
+    })?;
 
     let existing_post = match existing_post {
         Some(post) => post,
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found(format!("Post '{}' not found", slug)))
+                Json(ErrorResponse::not_found(format!(
+                    "Post '{}' not found",
+                    slug
+                ))),
             ));
         }
     };
 
     // Delete from database (soft delete by marking as unpublished)
-    state.database.delete_post(existing_post.id).await
+    state
+        .database
+        .delete_post(existing_post.id)
+        .await
         .map_err(|e| {
             error!("Database error deleting post: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to delete post"))
+                Json(ErrorResponse::internal_error("Failed to delete post")),
             )
         })?;
 
@@ -661,9 +704,12 @@ pub async fn delete_post_api(
 /// POST /api/sync/dropbox - Sync posts from Dropbox
 pub async fn sync_dropbox_api(
     State(state): State<ApiState>,
-    Json(request): Json<SyncDropboxRequest>
+    Json(request): Json<SyncDropboxRequest>,
 ) -> Result<Json<SyncResponse>, (StatusCode, Json<ErrorResponse>)> {
-    info!("API: Syncing posts from Dropbox (force: {:?})", request.force);
+    info!(
+        "API: Syncing posts from Dropbox (force: {:?})",
+        request.force
+    );
 
     let mut synced = 0;
     let mut errors = Vec::new();
@@ -673,10 +719,16 @@ pub async fn sync_dropbox_api(
         Ok(dropbox_posts) => {
             for dropbox_post in dropbox_posts {
                 // Check if post exists in database
-                match state.database.get_post_by_slug(&dropbox_post.metadata.slug).await {
+                match state
+                    .database
+                    .get_post_by_slug(&dropbox_post.metadata.slug)
+                    .await
+                {
                     Ok(Some(db_post)) => {
                         // Post exists, check if we should update
-                        if request.force.unwrap_or(false) || dropbox_post.metadata.updated_at > db_post.updated_at {
+                        if request.force.unwrap_or(false)
+                            || dropbox_post.metadata.updated_at > db_post.updated_at
+                        {
                             // Update existing post
                             let update_data = crate::models::UpdatePost {
                                 title: Some(dropbox_post.metadata.title.clone()),
@@ -697,7 +749,10 @@ pub async fn sync_dropbox_api(
                                     info!("Updated existing post: {}", dropbox_post.metadata.slug);
                                 }
                                 Err(e) => {
-                                    errors.push(format!("Failed to update post '{}': {}", dropbox_post.metadata.slug, e));
+                                    errors.push(format!(
+                                        "Failed to update post '{}': {}",
+                                        dropbox_post.metadata.slug, e
+                                    ));
                                 }
                             }
                         }
@@ -724,12 +779,18 @@ pub async fn sync_dropbox_api(
                                 info!("Created new post: {}", dropbox_post.metadata.slug);
                             }
                             Err(e) => {
-                                errors.push(format!("Failed to create post '{}': {}", dropbox_post.metadata.slug, e));
+                                errors.push(format!(
+                                    "Failed to create post '{}': {}",
+                                    dropbox_post.metadata.slug, e
+                                ));
                             }
                         }
                     }
                     Err(e) => {
-                        errors.push(format!("Database error checking post '{}': {}", dropbox_post.metadata.slug, e));
+                        errors.push(format!(
+                            "Database error checking post '{}': {}",
+                            dropbox_post.metadata.slug, e
+                        ));
                     }
                 }
             }
@@ -743,7 +804,11 @@ pub async fn sync_dropbox_api(
         success: errors.is_empty(),
         message: format!("Synced {} posts from Dropbox", synced),
         synced_count: Some(synced),
-        errors: if errors.is_empty() { None } else { Some(errors) },
+        errors: if errors.is_empty() {
+            None
+        } else {
+            Some(errors)
+        },
     };
 
     Ok(Json(response))
@@ -752,7 +817,7 @@ pub async fn sync_dropbox_api(
 /// POST /api/import/markdown - Import markdown files in bulk
 pub async fn import_markdown_api(
     State(state): State<ApiState>,
-    Json(request): Json<ImportMarkdownRequest>
+    Json(request): Json<ImportMarkdownRequest>,
 ) -> Result<Json<SyncResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!("API: Importing {} markdown files", request.files.len());
 
@@ -761,7 +826,9 @@ pub async fn import_markdown_api(
 
     for file in request.files {
         // Extract title from metadata or content
-        let title = file.metadata.as_ref()
+        let title = file
+            .metadata
+            .as_ref()
             .and_then(|m| m.title.clone())
             .unwrap_or_else(|| extract_title_from_markdown(&file.content));
 
@@ -793,8 +860,16 @@ pub async fn import_markdown_api(
             html_content,
             excerpt: Some(excerpt),
             category: file.metadata.as_ref().and_then(|m| m.category.clone()),
-            tags: file.metadata.as_ref().and_then(|m| m.tags.clone()).unwrap_or_default(),
-            published: file.metadata.as_ref().and_then(|m| m.published).unwrap_or(false),
+            tags: file
+                .metadata
+                .as_ref()
+                .and_then(|m| m.tags.clone())
+                .unwrap_or_default(),
+            published: file
+                .metadata
+                .as_ref()
+                .and_then(|m| m.published)
+                .unwrap_or(false),
             featured: false,
             author: file.metadata.as_ref().and_then(|m| m.author.clone()),
             dropbox_path: file.path.clone(),
@@ -803,7 +878,7 @@ pub async fn import_markdown_api(
         match state.database.create_post(create_data).await {
             Ok(post) => {
                 imported += 1;
-                
+
                 // Save to Dropbox as well
                 let blog_post = crate::services::blog_storage::BlogPost {
                     metadata: crate::services::blog_storage::BlogPostMetadata {
@@ -836,7 +911,11 @@ pub async fn import_markdown_api(
         success: errors.is_empty(),
         message: format!("Imported {} posts", imported),
         synced_count: Some(imported),
-        errors: if errors.is_empty() { None } else { Some(errors) },
+        errors: if errors.is_empty() {
+            None
+        } else {
+            Some(errors)
+        },
     };
 
     Ok(Json(response))
@@ -849,9 +928,16 @@ fn parse_tags_from_json(tags_json: &str) -> Vec<String> {
 }
 
 fn generate_slug(title: &str) -> String {
-    title.to_lowercase()
+    title
+        .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect::<String>()
         .split('-')
         .filter(|s| !s.is_empty())
@@ -865,7 +951,7 @@ fn generate_excerpt(content: &str, max_length: usize) -> String {
         .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
         .collect::<Vec<_>>()
         .join(" ");
-    
+
     if text.len() <= max_length {
         text
     } else {
@@ -874,7 +960,8 @@ fn generate_excerpt(content: &str, max_length: usize) -> String {
 }
 
 fn extract_title_from_markdown(content: &str) -> String {
-    content.lines()
+    content
+        .lines()
         .find(|line| line.starts_with("# "))
         .map(|line| line.trim_start_matches("# ").to_string())
         .unwrap_or_else(|| "Untitled".to_string())
@@ -890,29 +977,33 @@ pub async fn import_llm_article_api(
     if request.content.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("Content cannot be empty"))
+            Json(ErrorResponse::bad_request("Content cannot be empty")),
         ));
     }
 
-    let import_response = state.llm_import.process_single_article(request.clone()).await
+    let import_response = state
+        .llm_import
+        .process_single_article(request.clone())
+        .await
         .map_err(|e| {
             error!("LLM import error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to process article"))
+                Json(ErrorResponse::internal_error("Failed to process article")),
             )
         })?;
 
     // Optionally save to database if requested
     if request.published.unwrap_or(false) {
-        if let Err(e) = state.llm_import.save_imported_article(
-            import_response.clone(),
-            true
-        ).await {
+        if let Err(e) = state
+            .llm_import
+            .save_imported_article(import_response.clone(), true)
+            .await
+        {
             error!("Failed to save imported article: {}", e);
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to save article"))
+                Json(ErrorResponse::internal_error("Failed to save article")),
             ));
         }
     }
@@ -930,14 +1021,18 @@ pub async fn batch_import_api(
     if request.articles.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("No articles provided for import"))
+            Json(ErrorResponse::bad_request(
+                "No articles provided for import",
+            )),
         ));
     }
 
     if request.articles.len() > 50 {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("Too many articles (max 50 per batch)"))
+            Json(ErrorResponse::bad_request(
+                "Too many articles (max 50 per batch)",
+            )),
         ));
     }
 
@@ -955,17 +1050,25 @@ pub async fn save_llm_article_api(
     debug!("API: Saving LLM article with slug: {}", slug);
 
     // Check if article already exists
-    if state.database.get_post_by_slug(&slug).await
+    if state
+        .database
+        .get_post_by_slug(&slug)
+        .await
         .map_err(|e| {
             error!("Database error checking slug {}: {}", slug, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Database error"))
+                Json(ErrorResponse::internal_error("Database error")),
             )
-        })?.is_some() {
+        })?
+        .is_some()
+    {
         return Err((
             StatusCode::CONFLICT,
-            Json(ErrorResponse::bad_request(format!("Article with slug '{}' already exists", slug)))
+            Json(ErrorResponse::bad_request(format!(
+                "Article with slug '{}' already exists",
+                slug
+            ))),
         ));
     }
 
@@ -983,14 +1086,13 @@ pub async fn save_llm_article_api(
         dropbox_path: save_request.dropbox_path,
     };
 
-    let post = state.database.create_post(create_post).await
-        .map_err(|e| {
-            error!("Database error creating post: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to save article"))
-            )
-        })?;
+    let post = state.database.create_post(create_post).await.map_err(|e| {
+        error!("Database error creating post: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to save article")),
+        )
+    })?;
 
     let response = PostResponse::from(post);
     Ok(Json(response))
@@ -1025,15 +1127,13 @@ pub async fn upload_media_api(
     let mut file_field: Option<Field> = None;
 
     // Process multipart form data
-    while let Some(field) = multipart.next_field().await
-        .map_err(|e| {
-            error!("Failed to read multipart field: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid multipart data"))
-            )
-        })? {
-        
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        error!("Failed to read multipart field: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("Invalid multipart data")),
+        )
+    })? {
         match field.name() {
             Some("file") => {
                 file_field = Some(field);
@@ -1054,17 +1154,23 @@ pub async fn upload_media_api(
     let file_field = file_field.ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("No file provided"))
+            Json(ErrorResponse::bad_request("No file provided")),
         )
     })?;
 
     // Upload file using media service
-    let media_file = state.media.upload_file(file_field, alt_text, caption).await
+    let media_file = state
+        .media
+        .upload_file(file_field, alt_text, caption)
+        .await
         .map_err(|e| {
             error!("Media upload error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error(format!("Upload failed: {}", e)))
+                Json(ErrorResponse::internal_error(format!(
+                    "Upload failed: {}",
+                    e
+                ))),
             )
         })?;
 
@@ -1098,12 +1204,15 @@ pub async fn list_media_api(
     };
 
     // Get media files
-    let media_files = state.media.list_media_files(filters.clone()).await
+    let media_files = state
+        .media
+        .list_media_files(filters.clone())
+        .await
         .map_err(|e| {
             error!("Database error listing media: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to load media files"))
+                Json(ErrorResponse::internal_error("Failed to load media files")),
             )
         })?;
 
@@ -1112,12 +1221,15 @@ pub async fn list_media_api(
     count_filters.limit = None;
     count_filters.offset = None;
 
-    let total_count = state.media.count_media_files(count_filters).await
+    let total_count = state
+        .media
+        .count_media_files(count_filters)
+        .await
         .map_err(|e| {
             error!("Database error counting media: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to count media files"))
+                Json(ErrorResponse::internal_error("Failed to count media files")),
             )
         })?;
 
@@ -1141,27 +1253,25 @@ pub async fn delete_media_api(
 ) -> Result<Json<MediaUploadResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Deleting media file with ID: {}", id);
 
-    let media_id = Uuid::parse_str(&id)
-        .map_err(|_| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid media ID format"))
-            )
-        })?;
+    let media_id = Uuid::parse_str(&id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("Invalid media ID format")),
+        )
+    })?;
 
-    let deleted = state.media.delete_media_file(media_id).await
-        .map_err(|e| {
-            error!("Media deletion error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to delete media file"))
-            )
-        })?;
+    let deleted = state.media.delete_media_file(media_id).await.map_err(|e| {
+        error!("Media deletion error: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to delete media file")),
+        )
+    })?;
 
     if !deleted {
         return Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::not_found("Media file not found"))
+            Json(ErrorResponse::not_found("Media file not found")),
         ));
     }
 
@@ -1182,14 +1292,13 @@ pub async fn serve_media_file(
 ) -> Result<Response<Body>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Serving media file: {}", path);
 
-    let (data, mime_type) = state.media.serve_media_file(&path).await
-        .map_err(|e| {
-            error!("Media serving error: {}", e);
-            (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found("Media file not found"))
-            )
-        })?;
+    let (data, mime_type) = state.media.serve_media_file(&path).await.map_err(|e| {
+        error!("Media serving error: {}", e);
+        (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::not_found("Media file not found")),
+        )
+    })?;
 
     let response = Response::builder()
         .status(StatusCode::OK)
@@ -1200,7 +1309,7 @@ pub async fn serve_media_file(
             error!("Failed to build response: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to serve file"))
+                Json(ErrorResponse::internal_error("Failed to serve file")),
             )
         })?;
 
