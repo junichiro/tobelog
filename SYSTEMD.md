@@ -25,7 +25,7 @@ tobelogアプリケーションのsystemdサービス化により、自宅サー
 # プロジェクトディレクトリで
 cargo build --release
 
-# バイナリを適切な場所にコピー
+# バイナリを適切な場所にコピー（インストールスクリプト実行前に必要）
 sudo cp target/release/tobelog /usr/local/bin/tobelog
 sudo chmod +x /usr/local/bin/tobelog
 ```
@@ -33,11 +33,13 @@ sudo chmod +x /usr/local/bin/tobelog
 ### 2. systemdサービスのインストール
 
 ```bash
-# インストールスクリプトの実行
+# インストールスクリプトの実行（バイナリが/usr/local/bin/tobelogにある場合）
 sudo ./scripts/install-systemd.sh
 
 # カスタムバイナリパスを指定する場合
 sudo ./scripts/install-systemd.sh --binary-path /opt/tobelog/bin/tobelog
+
+# 注意: バイナリが/usr/local/bin/tobelog以外の場所にある場合は--binary-pathオプションを使用してください
 ```
 
 ### 3. 環境設定
@@ -205,8 +207,11 @@ sudo systemctl status tobelog-backup.timer
 # 1. サービス停止
 sudo systemctl stop tobelog
 
-# 2. データ復旧
-sudo cp backup/database/blog.db /var/lib/tobelog/database/
+# 2. データ復旧（バックアップディレクトリから復旧）
+# バックアップファイルの場所を確認
+ls -la /var/backups/tobelog/
+# 特定のタイムスタンプのバックアップから復旧
+sudo cp /var/backups/tobelog/YYYYMMDD_HHMMSS/database/blog.db /var/lib/tobelog/database/
 sudo chown tobelog:tobelog /var/lib/tobelog/database/blog.db
 
 # 3. サービス開始

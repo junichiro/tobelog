@@ -40,12 +40,8 @@ RestrictRealtime=yes
 RestrictSUIDSGID=yes
 RemoveIPC=yes
 
-# Network security
-IPAddressDeny=any
-IPAddressAllow=localhost
-IPAddressAllow=10.0.0.0/8
-IPAddressAllow=172.16.0.0/12
-IPAddressAllow=192.168.0.0/16
+# Network security (allow outbound connections for Dropbox API)
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 
 # File system access
 ReadWritePaths=/var/lib/tobelog
@@ -56,7 +52,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 
 # System call filtering
-SystemCallFilter=@system-service
+SystemCallFilter=@system-service @network-io
 SystemCallFilter=~@debug @mount @cpu-emulation @obsolete @privileged @reboot @swap @raw-io
 
 # Restart policy

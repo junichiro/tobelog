@@ -172,7 +172,7 @@ check_system_resources() {
     memory_info=$(free | grep Mem)
     local total_mem=$(echo "$memory_info" | awk '{print $2}')
     local used_mem=$(echo "$memory_info" | awk '{print $3}')
-    local memory_usage=$((used_mem * 100 / total_mem))
+    local memory_usage=$(echo "scale=2; $used_mem * 100 / $total_mem" | bc | cut -d. -f1)
     
     if [[ $memory_usage -gt $THRESHOLD_MEMORY ]]; then
         log_warning "High memory usage: ${memory_usage}%"
@@ -303,11 +303,23 @@ check_dropbox_api() {
     echo
     echo "=== Dropbox API Status ==="
     
-    # Check if we can reach Dropbox API
-    if curl -sf "https://api.dropboxapi.com/2/check/user" >/dev/null 2>&1; then
-        log_success "Dropbox API is reachable"
+    # Check if we can reach and authenticate with Dropbox API
+    local dropbox_token
+    dropbox_token=$(systemctl show "$SERVICE_NAME" --property=Environment | grep DROPBOX_ACCESS_TOKEN | cut -d= -f3)
+    
+    if [[ -n "$dropbox_token" ]]; then
+        if curl -sf -H "Authorization: Bearer $dropbox_token" "https://api.dropboxapi.com/2/users/get_current_account" >/dev/null 2>&1; then
+            log_success "Dropbox API is reachable and authenticated"
+        else
+            log_warning "Dropbox API authentication failed"
+        fi
     else
-        log_warning "Dropbox API connectivity issues"
+        # Fallback to basic connectivity check
+        if curl -sf "https://api.dropboxapi.com/2/check/user" >/dev/null 2>&1; then
+            log_success "Dropbox API is reachable (authentication not verified)"
+        else
+            log_warning "Dropbox API connectivity issues"
+        fi
     fi
     
     # Check for recent API errors in logs
