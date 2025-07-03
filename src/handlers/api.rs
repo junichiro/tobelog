@@ -1064,7 +1064,7 @@ pub async fn upload_media_api(
             error!("Media upload error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error(&format!("Upload failed: {}", e)))
+                Json(ErrorResponse::internal_error(format!("Upload failed: {}", e)))
             )
         })?;
 
