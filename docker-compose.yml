@@ -17,7 +17,7 @@ services:
       # Dropbox access token must be provided via .env file or environment
       - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN}
       # Optional API key for admin functions
-      - API_KEY=${API_KEY:-}
+      - API_KEY=${API_KEY:?API_KEY is not set. Please provide it in the .env file or as an environment variable.}
     volumes:
       # Persistent database storage
       - blog_data:/home/app/data
@@ -34,16 +34,10 @@ services:
     # Security settings
     security_opt:
       - no-new-privileges:true
-    read_only: false  # We need write access for SQLite
+    read_only: true  # Read-only filesystem for security
     user: "1001:1001"  # Run as non-root user
     cap_drop:
       - ALL
-    cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - FOWNER
-      - SETGID
-      - SETUID
 
 networks:
   tobelog-network:

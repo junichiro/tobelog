@@ -18,9 +18,11 @@
 # .env.example をコピーして環境変数を設定
 cp .env.example .env
 
-# 必要な値を設定
+# 必要な値を設定（すべての環境変数が必須です）
 vi .env
 ```
+
+**重要**: `DROPBOX_ACCESS_TOKEN`と`API_KEY`は必須の環境変数です。設定されていない場合、コンテナの起動に失敗します。
 
 ### 2. Dropbox API トークン取得
 
@@ -135,9 +137,9 @@ docker-compose exec tobelog /usr/local/bin/tobelog migrate
 ### セキュリティ設定の概要
 
 - 非rootユーザーでの実行 (UID: 1001)
-- 最小限の権限設定
+- 最小限の権限設定（すべての capabilities を削除）
 - `no-new-privileges` フラグ
-- 読み取り専用ファイルシステム（SQLite書き込み用パスは除く）
+- 読み取り専用ルートファイルシステム（マウントされたボリュームは書き込み可能）
 
 ### セキュリティスキャン
 

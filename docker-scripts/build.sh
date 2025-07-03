@@ -19,7 +19,6 @@ docker build \
   --tag "${DOCKER_REPO}:${VERSION}" \
   --tag "${DOCKER_REPO}:${ENVIRONMENT}" \
   --tag "${DOCKER_REPO}:latest" \
-  --build-arg ENVIRONMENT="${ENVIRONMENT}" \
   .
 
 echo "Build completed successfully!"
@@ -32,5 +31,5 @@ echo "  ${DOCKER_REPO}:latest"
 if [ "${ENVIRONMENT}" = "dev" ]; then
   echo ""
   echo "Running basic smoke test..."
-  docker run --rm "${DOCKER_REPO}:${VERSION}" /usr/local/bin/tobelog --help || echo "Smoke test failed"
+  docker run --rm "${DOCKER_REPO}:${VERSION}" /usr/local/bin/tobelog --help
 fi

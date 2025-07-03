@@ -41,7 +41,21 @@ docker-compose -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" up -d
 
 # Wait for health check
 echo "Waiting for services to be healthy..."
-sleep 10
+TIMEOUT=60
+ELAPSED=0
+while [ $ELAPSED -lt $TIMEOUT ]; do
+  if docker-compose -f "${COMPOSE_FILE}" -f "${OVERRIDE_FILE}" ps | grep -q "healthy"; then
+    echo "Service is healthy!"
+    break
+  fi
+  echo "Waiting for health check... (${ELAPSED}s/${TIMEOUT}s)"
+  sleep 5
+  ELAPSED=$((ELAPSED + 5))
+done
+
+if [ $ELAPSED -ge $TIMEOUT ]; then
+  echo "Warning: Service did not become healthy within ${TIMEOUT} seconds"
+fi
 
 # Check service status
 echo "Service status:"

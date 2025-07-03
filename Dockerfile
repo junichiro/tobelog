@@ -16,7 +16,7 @@ USER app
 WORKDIR /home/app
 
 # Copy dependency files first for better layer caching
-COPY --chown=app:app Cargo.toml ./
+COPY --chown=app:app Cargo.toml Cargo.lock ./
 
 # Create a dummy src/main.rs to build dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs
@@ -36,9 +36,10 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 
 # Install runtime dependencies and create app user
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     sqlite3 \
+    curl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /bin/bash --uid 1001 app
 
@@ -65,11 +66,6 @@ ENV SERVER_PORT=3000
 
 # Expose port
 EXPOSE 3000
-
-# Install curl for health checks
-USER root
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-USER app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

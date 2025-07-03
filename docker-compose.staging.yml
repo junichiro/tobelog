@@ -25,16 +25,10 @@ services:
     # Enhanced security for staging (close to production)
     security_opt:
       - no-new-privileges:true
-    read_only: false  # Still need write access for SQLite
+    read_only: true  # Read-only filesystem for security
     user: "1001:1001"
     cap_drop:
       - ALL
-    cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - FOWNER
-      - SETGID
-      - SETUID
     # Staging-specific health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]

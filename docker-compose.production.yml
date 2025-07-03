@@ -15,7 +15,7 @@ services:
       - DATABASE_URL=sqlite:///home/app/data/blog.db
       - RUST_LOG=warn  # Less verbose logging in production
       - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN}
-      - API_KEY=${API_KEY}
+      - API_KEY=${API_KEY:?PRODUCTION_API_KEY is not set. Please set it in your .env file or environment.}
     volumes:
       # Production database with backup considerations
       - blog_data_production:/home/app/data
@@ -26,16 +26,10 @@ services:
     # Maximum security for production
     security_opt:
       - no-new-privileges:true
-    read_only: false  # Still need write access for SQLite
+    read_only: true  # Read-only filesystem for security
     user: "1001:1001"
     cap_drop:
       - ALL
-    cap_add:
-      - CHOWN
-      - DAC_OVERRIDE
-      - FOWNER
-      - SETGID
-      - SETUID
     # Production health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
