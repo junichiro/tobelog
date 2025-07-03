@@ -135,6 +135,7 @@ async fn main() -> anyhow::Result<()> {
 
     let version_state = version::VersionState {
         version_service: (*version_service).clone(),
+        database: (*database).clone(),
     };
     
     // Create separate routers for each state type

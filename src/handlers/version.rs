@@ -12,12 +12,13 @@ use crate::models::{
     VersionHistoryResponse, VersionResponse, VersionDiffResponse, RestoreVersionResponse,
     RestoreVersionRequest
 };
-use crate::services::VersionService;
+use crate::services::{VersionService, DatabaseService};
 
 /// App state for version handlers
 #[derive(Clone)]
 pub struct VersionState {
     pub version_service: VersionService,
+    pub database: DatabaseService,
 }
 
 /// Query parameters for version listing
@@ -27,24 +28,45 @@ pub struct VersionQuery {
     pub offset: Option<i64>,
 }
 
+/// Query parameters for cleanup operation
+#[derive(Debug, Deserialize)]
+pub struct CleanupQuery {
+    pub keep_versions: Option<i32>,
+}
+
+/// Helper function to get post ID by slug
+async fn get_post_id_by_slug(database: &DatabaseService, slug: &str) -> Result<Uuid, (StatusCode, Json<ErrorResponse>)> {
+    let post = database.get_post_by_slug(slug).await
+        .map_err(|e| {
+            error!("Database error when getting post by slug {}: {}", slug, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::internal_error("Failed to get post"))
+            )
+        })?;
+
+    match post {
+        Some(post) => Ok(post.id),
+        None => {
+            error!("Post not found with slug: {}", slug);
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::not_found(format!("Post with slug '{}' not found", slug)))
+            ))
+        }
+    }
+}
+
 /// GET /api/posts/{slug}/versions - Get version history for a post
 pub async fn get_version_history(
     Path(slug): Path<String>,
-    Query(query): Query<VersionQuery>,
+    Query(_query): Query<VersionQuery>,
     State(state): State<VersionState>
 ) -> Result<Json<VersionHistoryResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting version history for post: {}", slug);
 
-    // First, get the post by slug to get the post ID
-    // For now, we'll parse the slug as a UUID (this might need adjustment based on your Post model)
-    let post_id = Uuid::parse_str(&slug)
-        .map_err(|_| {
-            error!("Invalid post slug format: {}", slug);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid post ID format"))
-            )
-        })?;
+    // Get the post ID by slug
+    let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
     let history = state.version_service.get_version_history(post_id).await
         .map_err(|e| {
@@ -70,14 +92,7 @@ pub async fn get_post_version(
 ) -> Result<Json<VersionResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting version {} for post: {}", version, slug);
 
-    let post_id = Uuid::parse_str(&slug)
-        .map_err(|_| {
-            error!("Invalid post slug format: {}", slug);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid post ID format"))
-            )
-        })?;
+    let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
     let post_version = state.version_service.get_version(post_id, version).await
         .map_err(|e| {
@@ -112,14 +127,7 @@ pub async fn compare_versions(
 ) -> Result<Json<VersionDiffResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Comparing versions {} and {} for post: {}", version_from, version_to, slug);
 
-    let post_id = Uuid::parse_str(&slug)
-        .map_err(|_| {
-            error!("Invalid post slug format: {}", slug);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid post ID format"))
-            )
-        })?;
+    let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
     let diff = state.version_service.compare_versions(post_id, version_from, version_to).await
         .map_err(|e| {
@@ -146,14 +154,7 @@ pub async fn restore_version(
 ) -> Result<Json<RestoreVersionResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Restoring post {} to version {}", slug, target_version);
 
-    let post_id = Uuid::parse_str(&slug)
-        .map_err(|_| {
-            error!("Invalid post slug format: {}", slug);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid post ID format"))
-            )
-        })?;
+    let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
     let restored_post = state.version_service
         .restore_version(post_id, target_version, request.change_summary)
@@ -178,21 +179,23 @@ pub async fn restore_version(
 /// POST /api/posts/{slug}/versions/cleanup - Clean up old versions
 pub async fn cleanup_old_versions(
     Path(slug): Path<String>,
+    Query(query): Query<CleanupQuery>,
     State(state): State<VersionState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Cleaning up old versions for post: {}", slug);
 
-    let post_id = Uuid::parse_str(&slug)
-        .map_err(|_| {
-            error!("Invalid post slug format: {}", slug);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse::bad_request("Invalid post ID format"))
-            )
-        })?;
+    let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
-    // Keep last 10 versions by default
-    let keep_versions = 10;
+    // Use query parameter or default to keeping last 10 versions
+    let keep_versions = query.keep_versions.unwrap_or(10);
+    
+    // Validate the keep_versions parameter
+    if keep_versions < 1 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::bad_request("keep_versions must be at least 1"))
+        ));
+    }
     
     let deleted_count = state.version_service
         .cleanup_old_versions(post_id, keep_versions)

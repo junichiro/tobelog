@@ -1,10 +1,10 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use crate::models::{
     Post, PostVersion, CreatePostVersion, VersionHistory, VersionSummary, 
-    VersionDiff, VersionFilters, RestoreVersionRequest
+    VersionDiff, VersionFilters
 };
 use crate::services::{DatabaseService, MarkdownService};
 
@@ -134,20 +134,25 @@ impl VersionService {
     }
 
     /// Restore a post to a previous version
+    /// 
+    /// Note: This operation involves multiple database writes and should ideally be wrapped
+    /// in a database transaction to ensure atomicity. Currently, we rely on manual error
+    /// handling and cleanup, but this could be improved with proper transaction support.
     pub async fn restore_version(&self, post_id: uuid::Uuid, target_version: i32, change_summary: Option<String>) -> Result<Post> {
         debug!("Restoring post {} to version {}", post_id, target_version);
 
-        // Get the target version
+        // Get the target version first to fail early if it doesn't exist
         let target_version_data = self.database.get_post_version(post_id, target_version).await?
             .ok_or_else(|| anyhow::anyhow!("Target version {} not found", target_version))?;
 
-        // Get the current post
+        // Get the current post and validate it exists
         let mut current_post = self.database.get_post_by_id(post_id).await?
             .ok_or_else(|| anyhow::anyhow!("Post not found"))?;
 
         // Create a version snapshot of current state before restoring
         let current_summary = format!("Auto-backup before restore to version {}", target_version);
-        self.create_version(&current_post, Some(current_summary)).await?;
+        self.create_version(&current_post, Some(current_summary)).await
+            .context("Failed to create backup version before restore")?;
 
         // Update the post with target version data
         current_post.title = target_version_data.title;
@@ -199,11 +204,12 @@ impl VersionService {
         Ok(())
     }
 
-    /// Generate a simple text diff (placeholder implementation)
+    /// Generate a text diff using a basic but more accurate algorithm
+    /// 
+    /// Note: This is a simplified implementation. For production use, consider using
+    /// a dedicated diff library like `similar` or `dissimilar` for better performance
+    /// and more sophisticated algorithms like Myers' diff algorithm.
     fn generate_text_diff(&self, from: &str, to: &str) -> String {
-        // This is a simplified diff implementation
-        // In a real application, you'd use a proper diff library like `similar` or `dissimilar`
-        
         if from == to {
             return "No changes".to_string();
         }
@@ -211,26 +217,77 @@ impl VersionService {
         let from_lines: Vec<&str> = from.lines().collect();
         let to_lines: Vec<&str> = to.lines().collect();
 
+        // Use a simple diff algorithm that tracks common subsequences
         let mut diff = Vec::new();
+        let mut i = 0; // index for from_lines
+        let mut j = 0; // index for to_lines
         
-        // Simple line-by-line comparison
-        let max_len = from_lines.len().max(to_lines.len());
-        
-        for i in 0..max_len {
-            match (from_lines.get(i), to_lines.get(i)) {
+        while i < from_lines.len() || j < to_lines.len() {
+            match (from_lines.get(i), to_lines.get(j)) {
                 (Some(from_line), Some(to_line)) => {
-                    if from_line != to_line {
-                        diff.push(format!("- {}", from_line));
-                        diff.push(format!("+ {}", to_line));
-                    } else {
+                    if from_line == to_line {
+                        // Lines are identical - show context
                         diff.push(format!("  {}", from_line));
+                        i += 1;
+                        j += 1;
+                    } else {
+                        // Lines differ - look ahead to see if we can find a match
+                        let mut found_match = false;
+                        
+                        // Look for the to_line in the next few from_lines (deletion case)
+                        for look_ahead in (i + 1)..=(i + 3).min(from_lines.len()) {
+                            if from_lines.get(look_ahead) == Some(to_line) {
+                                // Found the to_line later in from_lines, so lines were deleted
+                                for del_idx in i..look_ahead {
+                                    if let Some(del_line) = from_lines.get(del_idx) {
+                                        diff.push(format!("- {}", del_line));
+                                    }
+                                }
+                                diff.push(format!("  {}", to_line));
+                                i = look_ahead + 1;
+                                j += 1;
+                                found_match = true;
+                                break;
+                            }
+                        }
+                        
+                        if !found_match {
+                            // Look for the from_line in the next few to_lines (insertion case)
+                            for look_ahead in (j + 1)..=(j + 3).min(to_lines.len()) {
+                                if to_lines.get(look_ahead) == Some(from_line) {
+                                    // Found the from_line later in to_lines, so lines were inserted
+                                    for ins_idx in j..look_ahead {
+                                        if let Some(ins_line) = to_lines.get(ins_idx) {
+                                            diff.push(format!("+ {}", ins_line));
+                                        }
+                                    }
+                                    diff.push(format!("  {}", from_line));
+                                    i += 1;
+                                    j = look_ahead + 1;
+                                    found_match = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if !found_match {
+                            // No match found, treat as substitution
+                            diff.push(format!("- {}", from_line));
+                            diff.push(format!("+ {}", to_line));
+                            i += 1;
+                            j += 1;
+                        }
                     }
                 }
                 (Some(from_line), None) => {
+                    // Remaining lines in from (deletions)
                     diff.push(format!("- {}", from_line));
+                    i += 1;
                 }
                 (None, Some(to_line)) => {
+                    // Remaining lines in to (insertions)
                     diff.push(format!("+ {}", to_line));
+                    j += 1;
                 }
                 (None, None) => break,
             }
@@ -239,6 +296,12 @@ impl VersionService {
         if diff.is_empty() {
             "No changes".to_string()
         } else {
+            // Limit diff output to prevent overwhelming responses
+            let max_lines = 100;
+            if diff.len() > max_lines {
+                diff.truncate(max_lines - 1);
+                diff.push("... (diff truncated for brevity)".to_string());
+            }
             diff.join("\n")
         }
     }
