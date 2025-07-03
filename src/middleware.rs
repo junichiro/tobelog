@@ -9,6 +9,8 @@ use tracing::{debug, warn};
 
 use crate::config::Config;
 
+pub mod performance;
+
 /// Authentication middleware for API endpoints
 pub async fn auth_middleware(
     State(config): State<Config>,

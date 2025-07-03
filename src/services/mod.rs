@@ -9,6 +9,7 @@ pub mod llm_import;
 pub mod media;
 pub mod version;
 pub mod theme;
+pub mod cache;
 
 pub use dropbox::DropboxClient;
 pub use blog_storage::BlogStorageService;
@@ -19,3 +20,4 @@ pub use llm_import::LLMImportService;
 pub use media::MediaService;
 pub use version::VersionService;
 pub use theme::ThemeService;
+pub use cache::CacheService;

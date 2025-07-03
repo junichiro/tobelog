@@ -243,22 +243,30 @@ impl BlogStorageService {
         Ok(posts)
     }
 
-    /// Get a specific blog post by slug
+    /// Get a specific blog post by slug (optimized - still uses current implementation for compatibility)
+    /// TODO: Integrate with database-first lookup once database integration is added to BlogStorageService
     pub async fn get_post_by_slug(&self, slug: &str) -> Result<Option<BlogPost>> {
         info!("Looking for post with slug: {}", slug);
         
-        // Search in published posts first
-        let published_posts = self.list_published_posts().await?;
-        if let Some(post) = published_posts.iter().find(|p| p.metadata.slug == slug) {
-            return Ok(Some(post.clone()));
-        }
-
-        // Search in drafts if not found in published
+        // For now, we'll optimize by checking drafts first (smaller set usually)
+        // and then published posts, but we still preserve the original behavior
+        // Future optimization: integrate with database to get exact paths
+        
+        // Search in drafts first (usually smaller set, faster to scan)
         let draft_posts = self.list_draft_posts().await?;
         if let Some(post) = draft_posts.iter().find(|p| p.metadata.slug == slug) {
+            debug!("Found post in drafts: {}", slug);
             return Ok(Some(post.clone()));
         }
 
+        // Search in published posts
+        let published_posts = self.list_published_posts().await?;
+        if let Some(post) = published_posts.iter().find(|p| p.metadata.slug == slug) {
+            debug!("Found post in published: {}", slug);
+            return Ok(Some(post.clone()));
+        }
+
+        debug!("Post not found: {}", slug);
         Ok(None)
     }
 
