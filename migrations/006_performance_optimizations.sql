@@ -25,7 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_media_uploaded_at ON media_files(uploaded_at DESC
 CREATE INDEX IF NOT EXISTS idx_media_mime_type ON media_files(mime_type);
 
 -- Optimize post versions for performance monitoring
-CREATE INDEX IF NOT EXISTS idx_post_versions_post_id_version ON post_versions(post_id, version_number DESC);
+CREATE INDEX IF NOT EXISTS idx_post_versions_post_id_version ON post_versions(post_id, version DESC);
 
 -- Add theme performance indexes
 CREATE INDEX IF NOT EXISTS idx_themes_active ON themes(is_active) WHERE is_active = 1;
