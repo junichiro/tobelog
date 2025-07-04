@@ -224,40 +224,43 @@ curl -X POST http://localhost:3000/api/posts \
 
 ## デプロイ
 
-### SSL証明書の設定
+本番環境へのデプロイには複数の方法があります。最適な方法を選択するため、**[📋 統一デプロイガイド](DEPLOYMENT.md)** を参照してください。
+
+### 🚀 クイックスタート（15分）
+
+**初心者推奨**: Docker Composeで即座に本番環境を構築
 
 ```bash
-# 初回証明書取得
+# 1. 環境設定
+cp .env.example .env
+nano .env  # DROPBOX_ACCESS_TOKEN、ドメイン名を設定
+
+# 2. 本番環境起動
+docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
+```
+
+### 📚 詳細デプロイ方法
+
+用途に応じて最適な方法を選択：
+
+| 環境 | 推奨方法 | 特徴 | ガイド |
+|------|----------|------|--------|
+| **個人ブログ** | Docker Compose | 簡単・SSL自動化 | [DEPLOYMENT.md](DEPLOYMENT.md) |
+| **小規模チーム** | systemd | 軽量・カスタマイズ性 | [SYSTEMD.md](SYSTEMD.md) |
+| **企業環境** | systemd + CI/CD | 自動化・高信頼性 | [SYSTEMD.md](SYSTEMD.md) |
+
+### 🔧 部分的な設定例
+
+```bash
+# SSL証明書の手動設定（必要に応じて）
 sudo certbot certonly --standalone -d your-domain.com
 
-# 自動更新の設定
-sudo crontab -e
-# 以下を追加
-0 12 * * * /path/to/scripts/ssl-renewal.sh
-```
-
-### systemdサービス設定
-
-```bash
-# サービスファイルのコピー
-sudo cp systemd/tobelog.service /etc/systemd/system/
-
-# サービスの有効化と起動
+# systemdサービス設定（軽量運用の場合）
+sudo ./scripts/install-systemd.sh
 sudo systemctl enable tobelog
-sudo systemctl start tobelog
 ```
 
-### nginx設定
-
-```bash
-# nginx設定ファイルのコピー
-sudo cp nginx/nginx.conf /etc/nginx/sites-available/tobelog
-sudo ln -s /etc/nginx/sites-available/tobelog /etc/nginx/sites-enabled/
-
-# nginx設定のテストと再起動
-sudo nginx -t
-sudo systemctl restart nginx
-```
+**詳細な手順・トラブルシューティング**: [DEPLOYMENT.md](DEPLOYMENT.md) を参照
 
 ## 開発
 
