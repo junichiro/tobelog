@@ -15,7 +15,7 @@ pub mod performance;
 pub async fn auth_middleware(
     State(config): State<Config>,
     headers: HeaderMap,
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
     let path = request.uri().path();
@@ -92,15 +92,15 @@ fn is_read_only_endpoint(path: &str, method: &str) -> bool {
         || path.starts_with("/static/")
 }
 
-/// Rate limiting middleware (placeholder for future implementation)
-pub async fn rate_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
-    // TODO: Implement rate limiting logic
-    // For now, just pass through
-    Ok(next.run(request).await)
-}
+// /// Rate limiting middleware (placeholder for future implementation)
+// pub async fn rate_limit_middleware(
+//     request: Request,
+//     next: Next,
+// ) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
+//     // TODO: Implement rate limiting logic
+//     // For now, just pass through
+//     Ok(next.run(request).await)
+// }
 
 /// CSRF protection middleware (placeholder for future implementation)
 pub async fn csrf_middleware(

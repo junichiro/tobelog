@@ -29,9 +29,13 @@ use services::{
 struct AppState {
     dropbox_client: Arc<DropboxClient>,
     blog_storage: Arc<BlogStorageService>,
+    #[allow(dead_code)]
     database: Arc<DatabaseService>,
+    #[allow(dead_code)]
     markdown: Arc<MarkdownService>,
+    #[allow(dead_code)]
     config: Arc<config::Config>,
+    #[allow(dead_code)]
     cache: Arc<CacheService>,
 }
 

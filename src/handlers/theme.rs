@@ -16,6 +16,7 @@ use crate::services::{DatabaseService, ThemeService};
 #[derive(Clone)]
 pub struct ThemeState {
     pub theme_service: ThemeService,
+    #[allow(dead_code)]
     pub database: DatabaseService,
 }
 
@@ -31,6 +32,7 @@ pub struct ThemeQuery {
 
 /// Sync query parameters
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct SyncQuery {
     pub force: Option<bool>,
 }

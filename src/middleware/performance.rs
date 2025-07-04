@@ -9,6 +9,7 @@ use tracing::{debug, info, warn};
 use crate::services::CacheService;
 
 /// Performance monitoring middleware that tracks request timing and cache performance
+#[allow(dead_code)]
 pub async fn performance_tracking_middleware(
     request: Request,
     State(cache): State<CacheService>,

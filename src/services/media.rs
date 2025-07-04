@@ -15,6 +15,7 @@ use crate::services::{BlogStorageService, DatabaseService, DropboxClient};
 #[derive(Clone)]
 pub struct MediaService {
     dropbox_client: std::sync::Arc<DropboxClient>,
+    #[allow(dead_code)]
     blog_storage: std::sync::Arc<BlogStorageService>,
     database: DatabaseService,
     constraints: MediaConstraints,
