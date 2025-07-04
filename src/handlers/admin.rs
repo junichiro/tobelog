@@ -14,6 +14,7 @@ use crate::services::{DatabaseService, MarkdownService, TemplateService, LLMImpo
 #[derive(Clone)]
 pub struct AdminState {
     pub database: DatabaseService,
+    #[allow(dead_code)]
     pub markdown: MarkdownService,
     pub templates: TemplateService,
     pub llm_import: LLMImportService,
@@ -21,6 +22,7 @@ pub struct AdminState {
 
 /// Form data for post creation/editing
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct PostFormData {
     pub title: String,
     pub content: String,
@@ -251,6 +253,7 @@ pub async fn edit_post_form(
 }
 
 /// GET /admin/preview - Preview post (used by JavaScript for live preview)
+#[allow(dead_code)]
 pub async fn preview_post(
     State(state): State<AdminState>,
     content: String,
@@ -267,6 +270,7 @@ pub async fn preview_post(
 }
 
 /// Helper function to parse comma-separated tags
+#[allow(dead_code)]
 fn parse_tags(tags_string: Option<String>) -> Vec<String> {
     tags_string
         .unwrap_or_default()
@@ -426,6 +430,7 @@ pub async fn admin_edit_post_page(
 }
 
 /// GET /admin/posts - Post management page with enhanced features
+#[allow(dead_code)]
 pub async fn admin_posts_page(
     Query(query): Query<AdminPostsQuery>,
     State(state): State<AdminState>
@@ -518,6 +523,7 @@ struct ImportResultContext {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 struct AdminPostsContext {
     posts: Vec<PostSummary>,
     current_page: usize,
@@ -546,6 +552,7 @@ pub struct ImportFormData {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct AdminPostsQuery {
     pub page: Option<usize>,
     pub published: Option<bool>,

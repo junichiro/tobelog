@@ -23,6 +23,7 @@ pub struct VersionState {
 
 /// Query parameters for version listing
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct VersionQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
