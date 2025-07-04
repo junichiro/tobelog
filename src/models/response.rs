@@ -2,7 +2,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-
 /// Response model for individual post details
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostResponse {
@@ -111,7 +110,7 @@ impl From<crate::models::Post> for PostResponse {
     fn from(post: crate::models::Post) -> Self {
         let url_path = post.get_url_path();
         let tags = post.get_tags();
-        
+
         Self {
             id: post.id,
             slug: post.slug,
@@ -136,7 +135,7 @@ impl From<crate::models::Post> for PostSummary {
     fn from(post: crate::models::Post) -> Self {
         let url_path = post.get_url_path();
         let tags = post.get_tags();
-        
+
         Self {
             id: post.id,
             slug: post.slug,

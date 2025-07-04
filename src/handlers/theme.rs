@@ -7,11 +7,10 @@ use serde::Deserialize;
 use tracing::{debug, error};
 
 use crate::models::{
-    response::ErrorResponse,
-    ThemeResponse, ThemeListResponse, SiteConfigResponse, ThemePreviewResponse,
-    CreateThemeRequest, UpdateThemeRequest, ThemeFilters, SiteConfig
+    response::ErrorResponse, CreateThemeRequest, SiteConfig, SiteConfigResponse, ThemeFilters,
+    ThemeListResponse, ThemePreviewResponse, ThemeResponse, UpdateThemeRequest,
 };
-use crate::services::{ThemeService, DatabaseService};
+use crate::services::{DatabaseService, ThemeService};
 
 /// App state for theme handlers
 #[derive(Clone)]
@@ -41,7 +40,7 @@ pub struct SyncQuery {
 /// GET /api/themes - List all themes
 pub async fn list_themes(
     Query(query): Query<ThemeQuery>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<ThemeListResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Listing themes");
 
@@ -60,12 +59,15 @@ pub async fn list_themes(
         offset: query.offset,
     };
 
-    let themes = state.theme_service.list_themes(filters).await
+    let themes = state
+        .theme_service
+        .list_themes(filters)
+        .await
         .map_err(|e| {
             error!("Failed to list themes: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to list themes"))
+                Json(ErrorResponse::internal_error("Failed to list themes")),
             )
         })?;
 
@@ -81,18 +83,17 @@ pub async fn list_themes(
 /// GET /api/themes/{name} - Get a specific theme
 pub async fn get_theme(
     Path(name): Path<String>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting theme: {}", name);
 
-    let theme = state.theme_service.get_theme(&name).await
-        .map_err(|e| {
-            error!("Failed to get theme {}: {}", name, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get theme"))
-            )
-        })?;
+    let theme = state.theme_service.get_theme(&name).await.map_err(|e| {
+        error!("Failed to get theme {}: {}", name, e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to get theme")),
+        )
+    })?;
 
     match theme {
         Some(theme_data) => {
@@ -102,29 +103,29 @@ pub async fn get_theme(
             };
             Ok(Json(response))
         }
-        None => {
-            Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found(format!("Theme '{}' not found", name)))
-            ))
-        }
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::not_found(format!(
+                "Theme '{}' not found",
+                name
+            ))),
+        )),
     }
 }
 
 /// GET /api/themes/active - Get the currently active theme
 pub async fn get_active_theme(
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting active theme");
 
-    let theme = state.theme_service.get_active_theme().await
-        .map_err(|e| {
-            error!("Failed to get active theme: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get active theme"))
-            )
-        })?;
+    let theme = state.theme_service.get_active_theme().await.map_err(|e| {
+        error!("Failed to get active theme: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to get active theme")),
+        )
+    })?;
 
     let response = ThemeResponse {
         success: true,
@@ -137,11 +138,14 @@ pub async fn get_active_theme(
 /// POST /api/themes - Create a new theme
 pub async fn create_theme(
     State(state): State<ThemeState>,
-    Json(request): Json<CreateThemeRequest>
+    Json(request): Json<CreateThemeRequest>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Creating theme: {}", request.name);
 
-    let theme = state.theme_service.create_theme(request).await
+    let theme = state
+        .theme_service
+        .create_theme(request)
+        .await
         .map_err(|e| {
             error!("Failed to create theme: {}", e);
             let status = if e.to_string().contains("already exists") {
@@ -151,7 +155,11 @@ pub async fn create_theme(
             };
             (
                 status,
-                Json(ErrorResponse::new("Theme Creation Failed", e.to_string(), status.as_u16()))
+                Json(ErrorResponse::new(
+                    "Theme Creation Failed",
+                    e.to_string(),
+                    status.as_u16(),
+                )),
             )
         })?;
 
@@ -167,16 +175,19 @@ pub async fn create_theme(
 pub async fn update_theme(
     Path(name): Path<String>,
     State(state): State<ThemeState>,
-    Json(request): Json<UpdateThemeRequest>
+    Json(request): Json<UpdateThemeRequest>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Updating theme: {}", name);
 
-    let theme = state.theme_service.update_theme(&name, request).await
+    let theme = state
+        .theme_service
+        .update_theme(&name, request)
+        .await
         .map_err(|e| {
             error!("Failed to update theme {}: {}", name, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to update theme"))
+                Json(ErrorResponse::internal_error("Failed to update theme")),
             )
         })?;
 
@@ -191,23 +202,26 @@ pub async fn update_theme(
 /// DELETE /api/themes/{name} - Delete a theme
 pub async fn delete_theme(
     Path(name): Path<String>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Deleting theme: {}", name);
 
-    let deleted = state.theme_service.delete_theme(&name).await
-        .map_err(|e| {
-            error!("Failed to delete theme {}: {}", name, e);
-            let status = if e.to_string().contains("Cannot delete active theme") {
-                StatusCode::CONFLICT
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            };
-            (
-                status,
-                Json(ErrorResponse::new("Theme Deletion Failed", e.to_string(), status.as_u16()))
-            )
-        })?;
+    let deleted = state.theme_service.delete_theme(&name).await.map_err(|e| {
+        error!("Failed to delete theme {}: {}", name, e);
+        let status = if e.to_string().contains("Cannot delete active theme") {
+            StatusCode::CONFLICT
+        } else {
+            StatusCode::INTERNAL_SERVER_ERROR
+        };
+        (
+            status,
+            Json(ErrorResponse::new(
+                "Theme Deletion Failed",
+                e.to_string(),
+                status.as_u16(),
+            )),
+        )
+    })?;
 
     if deleted {
         let response = serde_json::json!({
@@ -218,7 +232,10 @@ pub async fn delete_theme(
     } else {
         Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::not_found(format!("Theme '{}' not found", name)))
+            Json(ErrorResponse::not_found(format!(
+                "Theme '{}' not found",
+                name
+            ))),
         ))
     }
 }
@@ -226,16 +243,19 @@ pub async fn delete_theme(
 /// POST /api/themes/{name}/activate - Set a theme as active
 pub async fn activate_theme(
     Path(name): Path<String>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<ThemeResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Activating theme: {}", name);
 
-    let theme = state.theme_service.set_active_theme(&name).await
+    let theme = state
+        .theme_service
+        .set_active_theme(&name)
+        .await
         .map_err(|e| {
             error!("Failed to activate theme {}: {}", name, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to activate theme"))
+                Json(ErrorResponse::internal_error("Failed to activate theme")),
             )
         })?;
 
@@ -250,16 +270,19 @@ pub async fn activate_theme(
 /// GET /api/themes/{name}/preview - Get theme preview with compiled CSS
 pub async fn get_theme_preview(
     Path(name): Path<String>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<ThemePreviewResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting theme preview: {}", name);
 
-    let (css, variables) = state.theme_service.get_theme_preview(&name).await
+    let (css, variables) = state
+        .theme_service
+        .get_theme_preview(&name)
+        .await
         .map_err(|e| {
             error!("Failed to get theme preview {}: {}", name, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get theme preview"))
+                Json(ErrorResponse::internal_error("Failed to get theme preview")),
             )
         })?;
 
@@ -275,16 +298,21 @@ pub async fn get_theme_preview(
 /// GET /api/themes/{name}/css - Get compiled CSS for a theme
 pub async fn get_theme_css(
     Path(name): Path<String>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<String, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting theme CSS: {}", name);
 
-    let css = state.theme_service.generate_theme_css(&name).await
+    let css = state
+        .theme_service
+        .generate_theme_css(&name)
+        .await
         .map_err(|e| {
             error!("Failed to generate theme CSS {}: {}", name, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to generate theme CSS"))
+                Json(ErrorResponse::internal_error(
+                    "Failed to generate theme CSS",
+                )),
             )
         })?;
 
@@ -294,16 +322,21 @@ pub async fn get_theme_css(
 /// POST /api/themes/sync - Sync themes from Dropbox
 pub async fn sync_dropbox_themes(
     Query(_query): Query<SyncQuery>,
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Syncing themes from Dropbox");
 
-    let templates = state.theme_service.sync_dropbox_themes().await
+    let templates = state
+        .theme_service
+        .sync_dropbox_themes()
+        .await
         .map_err(|e| {
             error!("Failed to sync Dropbox themes: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to sync themes from Dropbox"))
+                Json(ErrorResponse::internal_error(
+                    "Failed to sync themes from Dropbox",
+                )),
             )
         })?;
 
@@ -319,16 +352,21 @@ pub async fn sync_dropbox_themes(
 
 /// POST /api/themes/presets - Create preset themes
 pub async fn create_preset_themes(
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Creating preset themes");
 
-    state.theme_service.create_preset_themes().await
+    state
+        .theme_service
+        .create_preset_themes()
+        .await
         .map_err(|e| {
             error!("Failed to create preset themes: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to create preset themes"))
+                Json(ErrorResponse::internal_error(
+                    "Failed to create preset themes",
+                )),
             )
         })?;
 
@@ -344,18 +382,19 @@ pub async fn create_preset_themes(
 
 /// GET /api/site/config - Get site configuration
 pub async fn get_site_config(
-    State(state): State<ThemeState>
+    State(state): State<ThemeState>,
 ) -> Result<Json<SiteConfigResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting site configuration");
 
-    let config = state.theme_service.get_site_config().await
-        .map_err(|e| {
-            error!("Failed to get site config: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get site configuration"))
-            )
-        })?;
+    let config = state.theme_service.get_site_config().await.map_err(|e| {
+        error!("Failed to get site config: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error(
+                "Failed to get site configuration",
+            )),
+        )
+    })?;
 
     let response = SiteConfigResponse {
         success: true,
@@ -368,16 +407,21 @@ pub async fn get_site_config(
 /// PUT /api/site/config - Update site configuration
 pub async fn update_site_config(
     State(state): State<ThemeState>,
-    Json(config): Json<SiteConfig>
+    Json(config): Json<SiteConfig>,
 ) -> Result<Json<SiteConfigResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Updating site configuration");
 
-    let updated_config = state.theme_service.update_site_config(config).await
+    let updated_config = state
+        .theme_service
+        .update_site_config(config)
+        .await
         .map_err(|e| {
             error!("Failed to update site config: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to update site configuration"))
+                Json(ErrorResponse::internal_error(
+                    "Failed to update site configuration",
+                )),
             )
         })?;
 

@@ -90,28 +90,28 @@ impl MediaService {
         // Generate unique filename
         let media_type = MediaType::from_mime_type(&content_type);
         let unique_filename = self.generate_unique_filename(&filename)?;
-        
+
         // Determine folder structure
         let folder_name = media_type.folder_name();
         let now = Utc::now();
         let year = now.format("%Y");
         let month = now.format("%m");
-        
+
         let dropbox_path = format!(
             "/BlogStorage/media/{}/{}/{}/{}",
             folder_name, year, month, unique_filename
         );
 
         // Process image if it's an image file
-        let (processed_data, width, height, thumbnail_data) = 
-            if media_type == MediaType::Image {
-                self.process_image(&file_data, &content_type).await?
-            } else {
-                (file_data, None, None, None)
-            };
+        let (processed_data, width, height, thumbnail_data) = if media_type == MediaType::Image {
+            self.process_image(&file_data, &content_type).await?
+        } else {
+            (file_data, None, None, None)
+        };
 
         // Upload main file to Dropbox
-        self.upload_to_dropbox(&dropbox_path, &processed_data).await?;
+        self.upload_to_dropbox(&dropbox_path, &processed_data)
+            .await?;
 
         // Upload thumbnail if generated
         let thumbnail_url = if let Some(thumb_data) = thumbnail_data {
@@ -167,7 +167,7 @@ impl MediaService {
         hasher.update(original_filename.as_bytes());
         hasher.update(Utc::now().timestamp().to_string().as_bytes());
         hasher.update(Uuid::new_v4().to_string().as_bytes());
-        
+
         let hash = hasher.finalize();
         let hash_str = format!("{:x}", hash)[0..8].to_string();
 
@@ -193,17 +193,28 @@ impl MediaService {
             .map_err(|e| anyhow!("Failed to parse image: {}", e))?;
 
         let (original_width, original_height) = (img.width(), img.height());
-        debug!("Original image dimensions: {}x{}", original_width, original_height);
+        debug!(
+            "Original image dimensions: {}x{}",
+            original_width, original_height
+        );
 
         // Validate dimensions
         if let Some(max_width) = self.constraints.max_width {
             if original_width > max_width {
-                return Err(anyhow!("Image width ({}) exceeds limit ({})", original_width, max_width));
+                return Err(anyhow!(
+                    "Image width ({}) exceeds limit ({})",
+                    original_width,
+                    max_width
+                ));
             }
         }
         if let Some(max_height) = self.constraints.max_height {
             if original_height > max_height {
-                return Err(anyhow!("Image height ({}) exceeds limit ({})", original_height, max_height));
+                return Err(anyhow!(
+                    "Image height ({}) exceeds limit ({})",
+                    original_height,
+                    max_height
+                ));
             }
         }
 
@@ -221,14 +232,21 @@ impl MediaService {
             None
         };
 
-        Ok((main_data, Some(final_width), Some(final_height), thumbnail_data))
+        Ok((
+            main_data,
+            Some(final_width),
+            Some(final_height),
+            thumbnail_data,
+        ))
     }
 
     /// Resize image if it exceeds configured limits
     fn resize_image_if_needed(&self, img: DynamicImage) -> Result<DynamicImage> {
         let (width, height) = (img.width(), img.height());
-        
-        let needs_resize = if let (Some(max_w), Some(max_h)) = (self.image_config.max_width, self.image_config.max_height) {
+
+        let needs_resize = if let (Some(max_w), Some(max_h)) =
+            (self.image_config.max_width, self.image_config.max_height)
+        {
             width > max_w || height > max_h
         } else if let Some(max_w) = self.image_config.max_width {
             width > max_w
@@ -243,9 +261,16 @@ impl MediaService {
         }
 
         let (target_width, target_height) = self.calculate_target_dimensions(width, height);
-        debug!("Resizing image from {}x{} to {}x{}", width, height, target_width, target_height);
+        debug!(
+            "Resizing image from {}x{} to {}x{}",
+            width, height, target_width, target_height
+        );
 
-        Ok(img.resize(target_width, target_height, image::imageops::FilterType::Lanczos3))
+        Ok(img.resize(
+            target_width,
+            target_height,
+            image::imageops::FilterType::Lanczos3,
+        ))
     }
 
     /// Calculate target dimensions maintaining aspect ratio
@@ -260,14 +285,17 @@ impl MediaService {
         if ratio >= 1.0 {
             (width, height)
         } else {
-            ((width as f64 * ratio) as u32, (height as f64 * ratio) as u32)
+            (
+                (width as f64 * ratio) as u32,
+                (height as f64 * ratio) as u32,
+            )
         }
     }
 
     /// Generate thumbnail image
     fn generate_thumbnail(&self, img: &DynamicImage) -> Result<Vec<u8>> {
         let config = &self.image_config.thumbnail_config;
-        
+
         let thumbnail = img.resize_exact(
             config.width,
             config.height,
@@ -276,8 +304,9 @@ impl MediaService {
 
         let mut buffer = Vec::new();
         let mut cursor = Cursor::new(&mut buffer);
-        
-        thumbnail.write_to(&mut cursor, ImageFormat::Jpeg)
+
+        thumbnail
+            .write_to(&mut cursor, ImageFormat::Jpeg)
             .map_err(|e| anyhow!("Failed to encode thumbnail: {}", e))?;
 
         Ok(buffer)
@@ -317,7 +346,9 @@ impl MediaService {
         }
 
         // Upload file
-        self.dropbox_client.upload_binary_file(path, data).await
+        self.dropbox_client
+            .upload_binary_file(path, data)
+            .await
             .map_err(|e| anyhow!("Failed to upload to Dropbox: {}", e))?;
 
         debug!("Uploaded to Dropbox: {}", path);
@@ -328,7 +359,12 @@ impl MediaService {
     fn generate_media_url(&self, dropbox_path: &str) -> String {
         // For now, generate a local serving URL
         // In production, this would be a CDN URL or direct Dropbox link
-        format!("/media{}", dropbox_path.strip_prefix("/BlogStorage/media").unwrap_or(dropbox_path))
+        format!(
+            "/media{}",
+            dropbox_path
+                .strip_prefix("/BlogStorage/media")
+                .unwrap_or(dropbox_path)
+        )
     }
 
     /// Save media file to database
@@ -353,7 +389,9 @@ impl MediaService {
         };
 
         // Save to database (implementation will be added with database service)
-        self.database.create_media_file(&media_file).await
+        self.database
+            .create_media_file(&media_file)
+            .await
             .map_err(|e| anyhow!("Failed to save to database: {}", e))?;
 
         Ok(media_file)
@@ -361,19 +399,25 @@ impl MediaService {
 
     /// List media files with filtering and pagination
     pub async fn list_media_files(&self, filters: MediaFilters) -> Result<Vec<MediaFile>> {
-        self.database.list_media_files(filters).await
+        self.database
+            .list_media_files(filters)
+            .await
             .map_err(|e| anyhow!("Failed to list media files: {}", e))
     }
 
     /// Get media file count
     pub async fn count_media_files(&self, filters: MediaFilters) -> Result<usize> {
-        self.database.count_media_files(filters).await
+        self.database
+            .count_media_files(filters)
+            .await
             .map_err(|e| anyhow!("Failed to count media files: {}", e))
     }
 
     /// Get media file by ID
     pub async fn get_media_file(&self, id: Uuid) -> Result<Option<MediaFile>> {
-        self.database.get_media_file(id).await
+        self.database
+            .get_media_file(id)
+            .await
             .map_err(|e| anyhow!("Failed to get media file: {}", e))
     }
 
@@ -385,7 +429,11 @@ impl MediaService {
         };
 
         // Delete from Dropbox
-        if let Err(e) = self.dropbox_client.delete_file(&media_file.dropbox_path).await {
+        if let Err(e) = self
+            .dropbox_client
+            .delete_file(&media_file.dropbox_path)
+            .await
+        {
             warn!("Failed to delete file from Dropbox: {}", e);
         }
 
@@ -400,7 +448,9 @@ impl MediaService {
         }
 
         // Delete from database
-        self.database.delete_media_file(id).await
+        self.database
+            .delete_media_file(id)
+            .await
             .map_err(|e| anyhow!("Failed to delete from database: {}", e))?;
 
         info!("Deleted media file: {}", media_file.filename);
@@ -410,8 +460,11 @@ impl MediaService {
     /// Serve media file from Dropbox
     pub async fn serve_media_file(&self, path: &str) -> Result<(Vec<u8>, String)> {
         let dropbox_path = format!("/BlogStorage/media{}", path);
-        
-        let data = self.dropbox_client.download_file(&dropbox_path).await
+
+        let data = self
+            .dropbox_client
+            .download_file(&dropbox_path)
+            .await
             .map_err(|e| anyhow!("Failed to download from Dropbox: {}", e))?;
 
         // Determine MIME type from file extension
@@ -443,6 +496,7 @@ impl MediaService {
             "txt" => "text/plain",
             "md" => "text/markdown",
             _ => "application/octet-stream",
-        }.to_string()
+        }
+        .to_string()
     }
 }

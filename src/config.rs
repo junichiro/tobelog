@@ -18,7 +18,8 @@ impl Config {
             port: env::var("SERVER_PORT")
                 .unwrap_or_else(|_| "3000".to_string())
                 .parse()?,
-            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://blog.db".to_string()),
+            database_url: env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "sqlite://blog.db".to_string()),
             dropbox_access_token: env::var("DROPBOX_ACCESS_TOKEN")?,
             api_key: env::var("API_KEY").ok(),
             // blog_title: env::var("BLOG_TITLE").unwrap_or_else(|_| "My Personal Blog".to_string()),

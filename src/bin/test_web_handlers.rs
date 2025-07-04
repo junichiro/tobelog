@@ -3,15 +3,13 @@ use tokio;
 use tracing::{info, Level};
 use tracing_subscriber;
 
-use tobelog::models::{CreatePost};
+use tobelog::models::CreatePost;
 use tobelog::services::{DatabaseService, MarkdownService};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
-    tracing_subscriber::fmt()
-        .with_max_level(Level::INFO)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
 
     info!("🧪 Testing Web Handlers and Database Integration...");
 
@@ -79,7 +77,7 @@ The web handlers should be able to:
 
     // Process markdown
     let parsed = markdown_service.parse_markdown(markdown_content)?;
-    
+
     // Create post data
     let create_data = CreatePost {
         slug: "web-handler-test-post".to_string(),
@@ -103,7 +101,7 @@ The web handlers should be able to:
     let retrieved = db_service.get_post_by_slug("web-handler-test-post").await?;
     assert!(retrieved.is_some());
     let retrieved = retrieved.unwrap();
-    
+
     info!("✅ Retrieved post: {}", retrieved.title);
     info!("   - Category: {:?}", retrieved.category);
     info!("   - Tags: {:?}", retrieved.get_tags());
@@ -116,7 +114,7 @@ The web handlers should be able to:
         limit: Some(10),
         ..Default::default()
     };
-    
+
     let posts = db_service.list_posts(filters).await?;
     info!("✅ Listed {} published posts", posts.len());
 

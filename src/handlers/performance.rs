@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-};
+use axum::{extract::State, http::StatusCode, response::Json};
 use serde_json::Value;
 use tracing::{debug, error};
 
@@ -17,7 +13,7 @@ pub struct PerformanceState {
 
 /// GET /api/performance/metrics - Get current performance metrics
 pub async fn get_performance_metrics(
-    State(state): State<PerformanceState>
+    State(state): State<PerformanceState>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting performance metrics");
 
@@ -47,18 +43,17 @@ pub async fn get_performance_metrics(
 
 /// POST /api/performance/cache/clear - Clear all caches
 pub async fn clear_cache(
-    State(state): State<PerformanceState>
+    State(state): State<PerformanceState>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Clearing all caches");
 
-    state.cache.invalidate_all().await
-        .map_err(|e| {
-            error!("Failed to clear cache: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to clear cache"))
-            )
-        })?;
+    state.cache.invalidate_all().await.map_err(|e| {
+        error!("Failed to clear cache: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to clear cache")),
+        )
+    })?;
 
     let response = serde_json::json!({
         "success": true,
@@ -70,7 +65,7 @@ pub async fn clear_cache(
 
 /// GET /api/performance/health - Performance health check
 pub async fn performance_health_check(
-    State(state): State<PerformanceState>
+    State(state): State<PerformanceState>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Performance health check");
 
@@ -111,11 +106,14 @@ pub async fn performance_health_check(
 
     match status_code {
         StatusCode::OK => Ok(Json(response)),
-        _ => Err((status_code, Json(ErrorResponse::new(
-            "performance_unhealthy",
-            "Performance metrics indicate unhealthy system state",
-            status_code.as_u16()
-        ))))
+        _ => Err((
+            status_code,
+            Json(ErrorResponse::new(
+                "performance_unhealthy",
+                "Performance metrics indicate unhealthy system state",
+                status_code.as_u16(),
+            )),
+        )),
     }
 }
 

@@ -8,11 +8,10 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::models::{
-    response::ErrorResponse,
-    VersionHistoryResponse, VersionResponse, VersionDiffResponse, RestoreVersionResponse,
-    RestoreVersionRequest
+    response::ErrorResponse, RestoreVersionRequest, RestoreVersionResponse, VersionDiffResponse,
+    VersionHistoryResponse, VersionResponse,
 };
-use crate::services::{VersionService, DatabaseService};
+use crate::services::{DatabaseService, VersionService};
 
 /// App state for version handlers
 #[derive(Clone)]
@@ -36,15 +35,17 @@ pub struct CleanupQuery {
 }
 
 /// Helper function to get post ID by slug
-async fn get_post_id_by_slug(database: &DatabaseService, slug: &str) -> Result<Uuid, (StatusCode, Json<ErrorResponse>)> {
-    let post = database.get_post_by_slug(slug).await
-        .map_err(|e| {
-            error!("Database error when getting post by slug {}: {}", slug, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get post"))
-            )
-        })?;
+async fn get_post_id_by_slug(
+    database: &DatabaseService,
+    slug: &str,
+) -> Result<Uuid, (StatusCode, Json<ErrorResponse>)> {
+    let post = database.get_post_by_slug(slug).await.map_err(|e| {
+        error!("Database error when getting post by slug {}: {}", slug, e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::internal_error("Failed to get post")),
+        )
+    })?;
 
     match post {
         Some(post) => Ok(post.id),
@@ -52,7 +53,10 @@ async fn get_post_id_by_slug(database: &DatabaseService, slug: &str) -> Result<U
             error!("Post not found with slug: {}", slug);
             Err((
                 StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found(format!("Post with slug '{}' not found", slug)))
+                Json(ErrorResponse::not_found(format!(
+                    "Post with slug '{}' not found",
+                    slug
+                ))),
             ))
         }
     }
@@ -62,19 +66,24 @@ async fn get_post_id_by_slug(database: &DatabaseService, slug: &str) -> Result<U
 pub async fn get_version_history(
     Path(slug): Path<String>,
     Query(_query): Query<VersionQuery>,
-    State(state): State<VersionState>
+    State(state): State<VersionState>,
 ) -> Result<Json<VersionHistoryResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting version history for post: {}", slug);
 
     // Get the post ID by slug
     let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
-    let history = state.version_service.get_version_history(post_id).await
+    let history = state
+        .version_service
+        .get_version_history(post_id)
+        .await
         .map_err(|e| {
             error!("Failed to get version history for post {}: {}", slug, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get version history"))
+                Json(ErrorResponse::internal_error(
+                    "Failed to get version history",
+                )),
             )
         })?;
 
@@ -89,18 +98,21 @@ pub async fn get_version_history(
 /// GET /api/posts/{slug}/versions/{version} - Get a specific version of a post
 pub async fn get_post_version(
     Path((slug, version)): Path<(String, i32)>,
-    State(state): State<VersionState>
+    State(state): State<VersionState>,
 ) -> Result<Json<VersionResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Getting version {} for post: {}", version, slug);
 
     let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
-    let post_version = state.version_service.get_version(post_id, version).await
+    let post_version = state
+        .version_service
+        .get_version(post_id, version)
+        .await
         .map_err(|e| {
             error!("Failed to get version {} for post {}: {}", version, slug, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to get post version"))
+                Json(ErrorResponse::internal_error("Failed to get post version")),
             )
         })?;
 
@@ -112,30 +124,40 @@ pub async fn get_post_version(
             };
             Ok(Json(response))
         }
-        None => {
-            Err((
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse::not_found(format!("Version {} not found for post {}", version, slug)))
-            ))
-        }
+        None => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::not_found(format!(
+                "Version {} not found for post {}",
+                version, slug
+            ))),
+        )),
     }
 }
 
 /// GET /api/posts/{slug}/diff/{version_from}/{version_to} - Compare two versions
 pub async fn compare_versions(
     Path((slug, version_from, version_to)): Path<(String, i32, i32)>,
-    State(state): State<VersionState>
+    State(state): State<VersionState>,
 ) -> Result<Json<VersionDiffResponse>, (StatusCode, Json<ErrorResponse>)> {
-    debug!("API: Comparing versions {} and {} for post: {}", version_from, version_to, slug);
+    debug!(
+        "API: Comparing versions {} and {} for post: {}",
+        version_from, version_to, slug
+    );
 
     let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
-    let diff = state.version_service.compare_versions(post_id, version_from, version_to).await
+    let diff = state
+        .version_service
+        .compare_versions(post_id, version_from, version_to)
+        .await
         .map_err(|e| {
-            error!("Failed to compare versions {} and {} for post {}: {}", version_from, version_to, slug, e);
+            error!(
+                "Failed to compare versions {} and {} for post {}: {}",
+                version_from, version_to, slug, e
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to compare versions"))
+                Json(ErrorResponse::internal_error("Failed to compare versions")),
             )
         })?;
 
@@ -151,20 +173,24 @@ pub async fn compare_versions(
 pub async fn restore_version(
     Path((slug, target_version)): Path<(String, i32)>,
     State(state): State<VersionState>,
-    Json(request): Json<RestoreVersionRequest>
+    Json(request): Json<RestoreVersionRequest>,
 ) -> Result<Json<RestoreVersionResponse>, (StatusCode, Json<ErrorResponse>)> {
     debug!("API: Restoring post {} to version {}", slug, target_version);
 
     let post_id = get_post_id_by_slug(&state.database, &slug).await?;
 
-    let restored_post = state.version_service
+    let restored_post = state
+        .version_service
         .restore_version(post_id, target_version, request.change_summary)
         .await
         .map_err(|e| {
-            error!("Failed to restore post {} to version {}: {}", slug, target_version, e);
+            error!(
+                "Failed to restore post {} to version {}: {}",
+                slug, target_version, e
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to restore version"))
+                Json(ErrorResponse::internal_error("Failed to restore version")),
             )
         })?;
 
@@ -189,23 +215,28 @@ pub async fn cleanup_old_versions(
 
     // Use query parameter or default to keeping last 10 versions
     let keep_versions = query.keep_versions.unwrap_or(10);
-    
+
     // Validate the keep_versions parameter
     if keep_versions < 1 {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::bad_request("keep_versions must be at least 1"))
+            Json(ErrorResponse::bad_request(
+                "keep_versions must be at least 1",
+            )),
         ));
     }
-    
-    let deleted_count = state.version_service
+
+    let deleted_count = state
+        .version_service
         .cleanup_old_versions(post_id, keep_versions)
         .await
         .map_err(|e| {
             error!("Failed to cleanup old versions for post {}: {}", slug, e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::internal_error("Failed to cleanup old versions"))
+                Json(ErrorResponse::internal_error(
+                    "Failed to cleanup old versions",
+                )),
             )
         })?;
 

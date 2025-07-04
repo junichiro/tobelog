@@ -7,8 +7,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 
-use crate::models::{PostFilters, LLMArticleImportRequest, response::{PostResponse, PostSummary}};
-use crate::services::{DatabaseService, MarkdownService, TemplateService, LLMImportService};
+use crate::models::{
+    response::{PostResponse, PostSummary},
+    LLMArticleImportRequest, PostFilters,
+};
+use crate::services::{DatabaseService, LLMImportService, MarkdownService, TemplateService};
 
 /// Application state for admin handlers
 #[derive(Clone)]
@@ -81,25 +84,25 @@ struct PostFormPost {
 }
 
 /// GET /admin - Admin dashboard
-pub async fn dashboard(
-    State(state): State<AdminState>,
-) -> Result<Html<String>, StatusCode> {
+pub async fn dashboard(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering admin dashboard");
 
     // Get statistics
-    let stats = state.database.get_post_stats().await
-        .map_err(|e| {
-            error!("Failed to get post stats: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let stats = state.database.get_post_stats().await.map_err(|e| {
+        error!("Failed to get post stats: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Get recent posts
     let recent_filters = PostFilters {
         limit: Some(10),
         ..Default::default()
     };
-    
-    let recent_posts = state.database.list_posts(recent_filters).await
+
+    let recent_posts = state
+        .database
+        .list_posts(recent_filters)
+        .await
         .map_err(|e| {
             error!("Failed to get recent posts: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -111,8 +114,11 @@ pub async fn dashboard(
         limit: Some(10),
         ..Default::default()
     };
-    
-    let draft_posts = state.database.list_posts(draft_filters).await
+
+    let draft_posts = state
+        .database
+        .list_posts(draft_filters)
+        .await
         .map_err(|e| {
             error!("Failed to get draft posts: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -134,7 +140,9 @@ pub async fn dashboard(
         tags: stats.tags,
     };
 
-    let html = state.templates.render("admin/dashboard.html", &context)
+    let html = state
+        .templates
+        .render("admin/dashboard.html", &context)
         .map_err(|e| {
             error!("Failed to render dashboard template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -144,9 +152,7 @@ pub async fn dashboard(
 }
 
 /// GET /admin/posts - List all posts for management
-pub async fn posts_list(
-    State(state): State<AdminState>,
-) -> Result<Html<String>, StatusCode> {
+pub async fn posts_list(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering admin posts list");
 
     let filters = PostFilters {
@@ -154,18 +160,19 @@ pub async fn posts_list(
         ..Default::default()
     };
 
-    let posts = state.database.list_posts(filters).await
-        .map_err(|e| {
-            error!("Failed to list posts: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let posts = state.database.list_posts(filters).await.map_err(|e| {
+        error!("Failed to list posts: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let context = PostListContext {
         page_title: "Manage Posts".to_string(),
         posts,
     };
 
-    let html = state.templates.render("admin/post_list.html", &context)
+    let html = state
+        .templates
+        .render("admin/post_list.html", &context)
         .map_err(|e| {
             error!("Failed to render post list template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -175,9 +182,7 @@ pub async fn posts_list(
 }
 
 /// GET /admin/new - New post creation form
-pub async fn new_post_form(
-    State(state): State<AdminState>,
-) -> Result<Html<String>, StatusCode> {
+pub async fn new_post_form(State(state): State<AdminState>) -> Result<Html<String>, StatusCode> {
     debug!("Rendering new post form");
 
     let context = PostFormContext {
@@ -195,7 +200,9 @@ pub async fn new_post_form(
         },
     };
 
-    let html = state.templates.render("admin/post_form.html", &context)
+    let html = state
+        .templates
+        .render("admin/post_form.html", &context)
         .map_err(|e| {
             error!("Failed to render post form template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -211,11 +218,10 @@ pub async fn edit_post_form(
 ) -> Result<Html<String>, StatusCode> {
     debug!("Rendering edit form for post: {}", slug);
 
-    let post = state.database.get_post_by_slug(&slug).await
-        .map_err(|e| {
-            error!("Failed to get post {}: {}", slug, e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let post = state.database.get_post_by_slug(&slug).await.map_err(|e| {
+        error!("Failed to get post {}: {}", slug, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let post = match post {
         Some(p) => p,
@@ -243,7 +249,9 @@ pub async fn edit_post_form(
         },
     };
 
-    let html = state.templates.render("admin/post_form.html", &context)
+    let html = state
+        .templates
+        .render("admin/post_form.html", &context)
         .map_err(|e| {
             error!("Failed to render post form template: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
@@ -260,11 +268,10 @@ pub async fn preview_post(
 ) -> Result<Html<String>, StatusCode> {
     debug!("Generating preview for markdown content");
 
-    let html = state.markdown.markdown_to_html(&content)
-        .map_err(|e| {
-            error!("Failed to convert markdown to HTML: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let html = state.markdown.markdown_to_html(&content).map_err(|e| {
+        error!("Failed to convert markdown to HTML: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok(Html(html))
 }
@@ -283,7 +290,7 @@ fn parse_tags(tags_string: Option<String>) -> Vec<String> {
 
 /// GET /admin/import - LLM article import page
 pub async fn admin_import_page(
-    State(state): State<AdminState>
+    State(state): State<AdminState>,
 ) -> Result<Html<String>, (StatusCode, Html<String>)> {
     debug!("Admin: Loading import page");
 
@@ -291,12 +298,14 @@ pub async fn admin_import_page(
         page_title: "LLM記事インポート".to_string(),
     };
 
-    let html = state.templates.render("admin/import.html", &context)
+    let html = state
+        .templates
+        .render("admin/import.html", &context)
         .map_err(|e| {
             error!("Template error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Template error".to_string())
+                Html("Template error".to_string()),
             )
         })?;
 
@@ -313,27 +322,33 @@ pub async fn admin_process_import(
     if form_data.content.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Html("コンテンツが空です".to_string())
+            Html("コンテンツが空です".to_string()),
         ));
     }
 
     // Create import request
     let import_request = LLMArticleImportRequest {
         content: form_data.content.clone(),
-        suggested_title: if form_data.title.trim().is_empty() { 
-            None 
-        } else { 
-            Some(form_data.title.clone()) 
+        suggested_title: if form_data.title.trim().is_empty() {
+            None
+        } else {
+            Some(form_data.title.clone())
         },
-        category_hint: if form_data.category.trim().is_empty() { 
-            None 
-        } else { 
-            Some(form_data.category.clone()) 
+        category_hint: if form_data.category.trim().is_empty() {
+            None
+        } else {
+            Some(form_data.category.clone())
         },
         tags_hint: if form_data.tags.trim().is_empty() {
             None
         } else {
-            Some(form_data.tags.split(',').map(|s| s.trim().to_string()).collect())
+            Some(
+                form_data
+                    .tags
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .collect(),
+            )
         },
         source: form_data.source.clone(),
         published: Some(form_data.published),
@@ -341,25 +356,29 @@ pub async fn admin_process_import(
     };
 
     // Process the import
-    let import_response = state.llm_import.process_single_article(import_request).await
+    let import_response = state
+        .llm_import
+        .process_single_article(import_request)
+        .await
         .map_err(|e| {
             error!("LLM import error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html(format!("インポートエラー: {}", e))
+                Html(format!("インポートエラー: {}", e)),
             )
         })?;
 
     // Save to database if requested
     if form_data.published {
-        if let Err(e) = state.llm_import.save_imported_article(
-            import_response.clone(),
-            true
-        ).await {
+        if let Err(e) = state
+            .llm_import
+            .save_imported_article(import_response.clone(), true)
+            .await
+        {
             error!("Failed to save imported article: {}", e);
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html(format!("保存エラー: {}", e))
+                Html(format!("保存エラー: {}", e)),
             ));
         }
     }
@@ -370,17 +389,22 @@ pub async fn admin_process_import(
         title: import_response.suggested_metadata.title,
         preview_url: import_response.preview_url,
         formatted_content: import_response.formatted_content,
-        suggested_category: import_response.suggested_metadata.category.unwrap_or_default(),
+        suggested_category: import_response
+            .suggested_metadata
+            .category
+            .unwrap_or_default(),
         suggested_tags: import_response.suggested_metadata.tags.join(", "),
         saved_to_db: form_data.published,
     };
 
-    let html = state.templates.render("admin/import_result.html", &context)
+    let html = state
+        .templates
+        .render("admin/import_result.html", &context)
         .map_err(|e| {
             error!("Template error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Template error".to_string())
+                Html("Template error".to_string()),
             )
         })?;
 
@@ -390,25 +414,24 @@ pub async fn admin_process_import(
 /// GET /admin/posts/{slug}/edit - Edit post page with LLM support
 pub async fn admin_edit_post_page(
     Path(slug): Path<String>,
-    State(state): State<AdminState>
+    State(state): State<AdminState>,
 ) -> Result<Html<String>, (StatusCode, Html<String>)> {
     debug!("Admin: Loading edit page for post: {}", slug);
 
-    let post = state.database.get_post_by_slug(&slug).await
-        .map_err(|e| {
-            error!("Database error getting post {}: {}", slug, e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Database error".to_string())
-            )
-        })?;
+    let post = state.database.get_post_by_slug(&slug).await.map_err(|e| {
+        error!("Database error getting post {}: {}", slug, e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html("Database error".to_string()),
+        )
+    })?;
 
     let post = match post {
         Some(post) => post,
         None => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Html(format!("記事 '{}' が見つかりません", slug))
+                Html(format!("記事 '{}' が見つかりません", slug)),
             ));
         }
     };
@@ -417,12 +440,14 @@ pub async fn admin_edit_post_page(
         post: PostResponse::from(post),
     };
 
-    let html = state.templates.render("admin/edit_post.html", &context)
+    let html = state
+        .templates
+        .render("admin/edit_post.html", &context)
         .map_err(|e| {
             error!("Template error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Template error".to_string())
+                Html("Template error".to_string()),
             )
         })?;
 
@@ -433,7 +458,7 @@ pub async fn admin_edit_post_page(
 #[allow(dead_code)]
 pub async fn admin_posts_page(
     Query(query): Query<AdminPostsQuery>,
-    State(state): State<AdminState>
+    State(state): State<AdminState>,
 ) -> Result<Html<String>, (StatusCode, Html<String>)> {
     debug!("Admin: Loading posts management page");
 
@@ -450,12 +475,15 @@ pub async fn admin_posts_page(
         ..Default::default()
     };
 
-    let posts = state.database.list_posts(filters.clone()).await
+    let posts = state
+        .database
+        .list_posts(filters.clone())
+        .await
         .map_err(|e| {
             error!("Database error listing posts: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Database error".to_string())
+                Html("Database error".to_string()),
             )
         })?;
 
@@ -466,21 +494,22 @@ pub async fn admin_posts_page(
         ..Default::default()
     };
 
-    let total_count = state.database.count_posts(count_filters).await
+    let total_count = state
+        .database
+        .count_posts(count_filters)
+        .await
         .map_err(|e| {
             error!("Database error counting posts: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Database error".to_string())
+                Html("Database error".to_string()),
             )
         })?;
 
     let total = total_count as usize;
     let total_pages = total.div_ceil(per_page);
 
-    let post_summaries: Vec<PostSummary> = posts.into_iter()
-        .map(PostSummary::from)
-        .collect();
+    let post_summaries: Vec<PostSummary> = posts.into_iter().map(PostSummary::from).collect();
 
     let context = AdminPostsContext {
         posts: post_summaries,
@@ -492,12 +521,14 @@ pub async fn admin_posts_page(
         filter_category: query.category.unwrap_or_default(),
     };
 
-    let html = state.templates.render("admin/posts.html", &context)
+    let html = state
+        .templates
+        .render("admin/posts.html", &context)
         .map_err(|e| {
             error!("Template error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Html("Template error".to_string())
+                Html("Template error".to_string()),
             )
         })?;
 
