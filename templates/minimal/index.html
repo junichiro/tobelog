@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}{{ site_title }} - ホーム{% endblock %}
+
+{% block content %}
+<!-- Simple stats -->
+{% if blog_stats %}
+<div style="background: #f9f9f9; padding: 20px; margin-bottom: 30px; border-radius: 5px;">
+    <h2>統計</h2>
+    <p>総記事数: <strong>{{ blog_stats.total_posts }}</strong> | 
+       公開記事: <strong>{{ blog_stats.published_posts }}</strong> | 
+       注目記事: <strong>{{ blog_stats.featured_posts }}</strong></p>
+</div>
+{% endif %}
+
+<!-- Recent Posts -->
+<h2>最新記事</h2>
+
+{% if posts %}
+    {% for post in posts %}
+    <article class="post">
+        <!-- Post Title -->
+        <h3 class="post-title">
+            <a href="/posts/{{ post.created_at | date(format='%Y') }}/{{ post.slug }}">
+                {{ post.title }}
+            </a>
+        </h3>
+
+        <!-- Post Meta -->
+        <div class="post-meta">
+            <time datetime="{{ post.published_at | default(value=post.created_at) | date(format='%Y-%m-%d') }}">
+                {{ post.published_at | default(value=post.created_at) | date(format='%Y年%m月%d日') }}
+            </time>
+            {% if post.category %}
+            | <span class="category">{{ post.category }}</span>
+            {% endif %}
+            {% if post.featured %}
+            | <strong>注目</strong>
+            {% endif %}
+        </div>
+
+        <!-- Post Excerpt -->
+        {% if post.excerpt %}
+        <div class="post-excerpt">
+            {{ post.excerpt }}
+        </div>
+        {% endif %}
+
+        <!-- Post Tags -->
+        {% if post.tags %}
+        <div style="margin-top: 10px;">
+            {% for tag in post.tags %}
+            <span class="tag">#{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div style="margin-top: 10px;">
+            <a href="/posts/{{ post.created_at | date(format='%Y') }}/{{ post.slug }}">続きを読む →</a>
+        </div>
+    </article>
+    {% endfor %}
+{% else %}
+    <!-- Empty state -->
+    <div style="text-align: center; padding: 40px; color: #666;">
+        <h3>まだ記事がありません</h3>
+        <p>最初の記事を書いてみましょう！</p>
+    </div>
+{% endif %}
+
+<!-- Categories and tags -->
+{% if blog_stats %}
+<div style="margin-top: 40px;">
+    {% if blog_stats.categories %}
+    <h3>カテゴリ</h3>
+    <div style="margin-bottom: 20px;">
+        {% for category in blog_stats.categories %}
+        <a href="/category/{{ category.name }}" style="margin-right: 15px;">
+            {{ category.name }} ({{ category.count }})
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if blog_stats.tags %}
+    <h3>タグ</h3>
+    <div>
+        {% for tag in blog_stats.tags %}
+        <a href="/tag/{{ tag.name }}" class="tag" style="margin-right: 10px;">
+            #{{ tag.name }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
