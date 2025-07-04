@@ -67,7 +67,7 @@ docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
 docker-compose logs nginx
 
 # 5. 動作確認
-curl -k https://your-domain.com/health
+curl https://your-domain.com/health
 ```
 
 **15分で完了！** ブラウザで `https://your-domain.com` にアクセスして動作確認してください。
@@ -108,12 +108,12 @@ docker-compose -f docker-compose.yml -f docker-compose.production.yml up -d
 
 ### 初心者向け
 **推奨**: Docker Compose一発セットアップ
-- [15分クイックスタート](#-15分クイックスタート)を実行
+- [15分クイックスタート](#15分クイックスタート)を実行
 - 詳細は [DOCKER.md](DOCKER.md) を参照
 
 ### 中級者向け
 **推奨**: カスタム設定とセキュリティ強化
-- Docker ComposeまたはsystemdからDEMEOこします
+- Docker Composeまたはsystemdから選択します
 - 詳細は [DOCKER.md](DOCKER.md) または [SYSTEMD.md](SYSTEMD.md) を参照
 
 ### 上級者向け
@@ -258,7 +258,7 @@ sudo systemctl start tobelog
 
 問題が発生した場合：
 
-1. [トラブルシューティング](#-トラブルシューティング)セクションを確認
+1. [トラブルシューティング](#トラブルシューティング)セクションを確認
 2. 該当する詳細ドキュメント（DOCKER.md、SYSTEMD.md）を参照
 3. [GitHub Issues](https://github.com/junichiro/tobelog/issues)で質問・報告
 
