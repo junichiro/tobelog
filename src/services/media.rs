@@ -37,11 +37,13 @@ impl MediaService {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_constraints(mut self, constraints: MediaConstraints) -> Self {
         self.constraints = constraints;
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_image_config(mut self, config: ImageProcessingConfig) -> Self {
         self.image_config = config;
         self

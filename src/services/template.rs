@@ -10,6 +10,7 @@ use tracing::{debug, info, warn};
 #[derive(Clone)]
 pub struct TemplateService {
     tera: Tera,
+    #[allow(dead_code)]
     theme: String,
 }
 
@@ -55,11 +56,13 @@ impl TemplateService {
     }
     
     /// Get current theme name
+    #[allow(dead_code)]
     pub fn get_theme(&self) -> &str {
         &self.theme
     }
     
     /// Check if template exists
+    #[allow(dead_code)]
     pub fn has_template(&self, template_name: &str) -> bool {
         self.tera.get_template(template_name).is_ok()
     }
@@ -312,6 +315,7 @@ impl From<crate::models::PostStats> for BlogStats {
 }
 
 /// Get list of available themes
+#[allow(dead_code)]
 pub fn get_available_themes() -> Result<Vec<String>> {
     let templates_dir = Path::new("templates");
     if !templates_dir.exists() {

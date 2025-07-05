@@ -112,6 +112,7 @@ impl MediaType {
 pub struct ThumbnailConfig {
     pub width: u32,
     pub height: u32,
+    #[allow(dead_code)]
     pub quality: u8,
 }
 
@@ -130,6 +131,7 @@ impl Default for ThumbnailConfig {
 pub struct ImageProcessingConfig {
     pub max_width: Option<u32>,
     pub max_height: Option<u32>,
+    #[allow(dead_code)]
     pub quality: u8,
     pub generate_thumbnail: bool,
     pub thumbnail_config: ThumbnailConfig,

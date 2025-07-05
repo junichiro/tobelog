@@ -41,12 +41,16 @@ impl Default for PerformanceMetrics {
 /// Cached blog post with expiration
 #[derive(Debug, Clone)]
 pub struct CachedPost {
+    #[allow(dead_code)]
     pub post: Post,
+    #[allow(dead_code)]
     pub cached_at: Instant,
+    #[allow(dead_code)]
     pub expires_at: Instant,
 }
 
 impl CachedPost {
+    #[allow(dead_code)]
     pub fn new(post: Post, ttl: Duration) -> Self {
         let now = Instant::now();
         Self {
@@ -56,6 +60,7 @@ impl CachedPost {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
         Instant::now() > self.expires_at
     }
@@ -64,13 +69,18 @@ impl CachedPost {
 /// Cached post list with metadata
 #[derive(Debug, Clone)]
 pub struct CachedPostList {
+    #[allow(dead_code)]
     pub posts: Vec<PostSummary>,
+    #[allow(dead_code)]
     pub total_count: usize,
+    #[allow(dead_code)]
     pub cached_at: Instant,
+    #[allow(dead_code)]
     pub expires_at: Instant,
 }
 
 impl CachedPostList {
+    #[allow(dead_code)]
     pub fn new(posts: Vec<PostSummary>, total_count: usize, ttl: Duration) -> Self {
         let now = Instant::now();
         Self {
@@ -81,6 +91,7 @@ impl CachedPostList {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
         Instant::now() > self.expires_at
     }
@@ -89,16 +100,23 @@ impl CachedPostList {
 /// Cached blog statistics
 #[derive(Debug, Clone)]
 pub struct CachedStats {
+    #[allow(dead_code)]
     pub total_posts: i64,
+    #[allow(dead_code)]
     pub published_posts: i64,
+    #[allow(dead_code)]
     pub draft_posts: i64,
+    #[allow(dead_code)]
     pub featured_posts: i64,
+    #[allow(dead_code)]
     pub categories: Vec<(String, i64)>,
+    #[allow(dead_code)]
     pub cached_at: Instant,
     pub expires_at: Instant,
 }
 
 impl CachedStats {
+    #[allow(dead_code)]
     pub fn new(
         total_posts: i64,
         published_posts: i64,
@@ -119,6 +137,7 @@ impl CachedStats {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_expired(&self) -> bool {
         Instant::now() > self.expires_at
     }
@@ -127,11 +146,17 @@ impl CachedStats {
 /// Cache configuration
 #[derive(Debug, Clone)]
 pub struct CacheConfig {
+    #[allow(dead_code)]
     pub post_ttl: Duration,
+    #[allow(dead_code)]
     pub post_list_ttl: Duration,
+    #[allow(dead_code)]
     pub stats_ttl: Duration,
+    #[allow(dead_code)]
     pub max_posts: usize,
+    #[allow(dead_code)]
     pub max_lists: usize,
+    #[allow(dead_code)]
     pub cleanup_interval: Duration,
 }
 
@@ -155,7 +180,9 @@ pub struct CacheService {
     post_lists: Arc<RwLock<HashMap<String, CachedPostList>>>,
     stats: Arc<RwLock<Option<CachedStats>>>,
     metrics: Arc<RwLock<PerformanceMetrics>>,
+    #[allow(dead_code)]
     config: CacheConfig,
+    #[allow(dead_code)]
     last_cleanup: Arc<RwLock<Instant>>,
 }
 
@@ -178,6 +205,7 @@ impl CacheService {
     }
 
     /// Get a cached post by slug
+    #[allow(dead_code)]
     pub async fn get_post(&self, slug: &str) -> Option<Post> {
         let posts = self.posts.read().await;
         if let Some(cached_post) = posts.get(slug) {
@@ -196,6 +224,7 @@ impl CacheService {
     }
 
     /// Cache a post with TTL
+    #[allow(dead_code)]
     pub async fn set_post(&self, slug: &str, post: Post) -> Result<()> {
         self.cleanup_if_needed().await;
 
@@ -214,6 +243,7 @@ impl CacheService {
     }
 
     /// Get cached post list by cache key
+    #[allow(dead_code)]
     pub async fn get_post_list(&self, cache_key: &str) -> Option<(Vec<PostSummary>, usize)> {
         let post_lists = self.post_lists.read().await;
         if let Some(cached_list) = post_lists.get(cache_key) {
@@ -232,6 +262,7 @@ impl CacheService {
     }
 
     /// Cache a post list with TTL
+    #[allow(dead_code)]
     pub async fn set_post_list(
         &self,
         cache_key: &str,
@@ -255,6 +286,7 @@ impl CacheService {
     }
 
     /// Get cached blog statistics
+    #[allow(dead_code)]
     pub async fn get_stats(&self) -> Option<CachedStats> {
         let stats = self.stats.read().await;
         if let Some(cached_stats) = stats.as_ref() {
@@ -273,6 +305,7 @@ impl CacheService {
     }
 
     /// Cache blog statistics
+    #[allow(dead_code)]
     pub async fn set_stats(
         &self,
         total_posts: i64,
@@ -316,6 +349,7 @@ impl CacheService {
     }
 
     /// Invalidate cached data for a specific post
+    #[allow(dead_code)]
     pub async fn invalidate_post(&self, slug: &str) -> Result<()> {
         {
             let mut posts = self.posts.write().await;
@@ -339,6 +373,7 @@ impl CacheService {
     }
 
     /// Generate cache key for post lists based on filters
+    #[allow(dead_code)]
     pub fn generate_list_cache_key(
         &self,
         category: Option<&str>,

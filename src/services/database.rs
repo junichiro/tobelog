@@ -719,6 +719,7 @@ impl DatabaseService {
     }
 
     /// Associate media file with a post
+    #[allow(dead_code)]
     pub async fn associate_media_with_post(&self, post_id: Uuid, media_id: Uuid) -> Result<()> {
         debug!("Associating media {} with post {}", media_id, post_id);
 
@@ -733,6 +734,7 @@ impl DatabaseService {
     }
 
     /// Get media files associated with a post
+    #[allow(dead_code)]
     pub async fn get_post_media(&self, post_id: Uuid) -> Result<Vec<MediaFile>> {
         debug!("Getting media files for post: {}", post_id);
 

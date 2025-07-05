@@ -8,7 +8,8 @@ pub mod theme;
 pub mod version;
 
 pub use media::*;
-pub use metadata::*;
+// Future metadata models - currently unused
+// pub use metadata::{BlogConfig, PostMetadata};
 pub use post::*;
 pub use response::*;
 pub use theme::*;

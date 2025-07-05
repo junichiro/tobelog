@@ -103,6 +103,7 @@ fn is_read_only_endpoint(path: &str, method: &str) -> bool {
 // }
 
 /// CSRF protection middleware (placeholder for future implementation)
+#[allow(dead_code)]
 pub async fn csrf_middleware(
     request: Request,
     next: Next,

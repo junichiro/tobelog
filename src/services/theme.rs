@@ -319,6 +319,7 @@ impl ThemeService {
     }
 
     /// Validate CSS content
+    #[allow(dead_code)]
     pub fn validate_css(&self, css: &str) -> Result<Vec<String>> {
         debug!("Validating CSS content");
 
