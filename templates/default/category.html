@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category_name }} - カテゴリ - {{ site_title }}{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="bg-gradient-to-r from-primary-500 to-blue-600 rounded-2xl p-8 mb-12 text-white">
+    <div class="flex items-center gap-3 mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+        </svg>
+        <h1 class="text-3xl sm:text-4xl font-bold">{{ category_name }}</h1>
+    </div>
+    <p class="text-xl text-blue-100 mb-4">カテゴリ内の記事: {{ total_posts }}件</p>
+    <nav class="text-blue-100">
+        <a href="/" class="hover:text-white transition-colors">ホーム</a>
+        <span class="mx-2">›</span>
+        <span>{{ category_name }}</span>
+    </nav>
+</div>
+
+<!-- Posts Section -->
+<div class="flex flex-col lg:flex-row gap-8">
+    <!-- Main Content -->
+    <div class="lg:w-2/3">
+        {% if posts %}
+            <div class="space-y-6">
+                {% for post in posts %}
+                <article class="bg-white dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden">
+                    {% if post.featured %}
+                    <div class="bg-gradient-to-r from-yellow-400 to-orange-500 h-1"></div>
+                    {% endif %}
+                    
+                    <div class="p-6">
+                        <!-- Post Meta -->
+                        <div class="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                            <time datetime="{{ post.published_at | default(value=post.created_at) | date(format='%Y-%m-%d') }}">
+                                {{ post.published_at | default(value=post.created_at) | date(format='%Y年%m月%d日') }}
+                            </time>
+                            <span class="bg-primary-100 dark:bg-primary-900 text-primary-800 dark:text-primary-200 px-2 py-1 rounded-md text-xs">
+                                {{ category_name }}
+                            </span>
+                            {% if post.featured %}
+                            <span class="bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-md text-xs">
+                                注目
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Post Title -->
+                        <h2 class="text-xl font-bold mb-3 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+                            <a href="/posts/{{ post.created_at | date(format='%Y') }}/{{ post.slug }}">
+                                {{ post.title }}
+                            </a>
+                        </h2>
+
+                        <!-- Post Excerpt -->
+                        {% if post.excerpt %}
+                        <p class="text-gray-600 dark:text-gray-400 mb-4 line-clamp-3">
+                            {{ post.excerpt }}
+                        </p>
+                        {% endif %}
+
+                        <!-- Post Tags -->
+                        {% if post.tags %}
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            {% for tag in post.tags %}
+                            <a href="/tag/{{ tag }}" class="bg-gray-100 dark:bg-gray-700 hover:bg-primary-100 dark:hover:bg-primary-900 text-gray-700 dark:text-gray-300 hover:text-primary-800 dark:hover:text-primary-200 px-2 py-1 rounded-md text-xs transition-colors">
+                                #{{ tag }}
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Read More -->
+                        <div class="flex items-center justify-between">
+                            <a href="/posts/{{ post.created_at | date(format='%Y') }}/{{ post.slug }}" 
+                               class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                                続きを読む
+                                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </a>
+                            
+                            {% if post.author %}
+                            <span class="text-sm text-gray-500 dark:text-gray-400">
+                                by {{ post.author }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="flex justify-center mt-12">
+                <nav class="flex items-center space-x-2">
+                    {% if page > 1 %}
+                    <a href="/category/{{ category_name }}?page={{ page - 1 }}" 
+                       class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        前へ
+                    </a>
+                    {% endif %}
+
+                    <span class="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
+                        {{ page }} / {{ total_pages }}
+                    </span>
+
+                    {% if page < total_pages %}
+                    <a href="/category/{{ category_name }}?page={{ page + 1 }}" 
+                       class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        次へ
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            {% endif %}
+        {% else %}
+            <!-- Empty state -->
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-12 text-center">
+                <div class="w-16 h-16 mx-auto mb-4 text-gray-400">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                        </path>
+                    </svg>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    このカテゴリには記事がありません
+                </h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-4">
+                    「{{ category_name }}」カテゴリの記事はまだありません。
+                </p>
+                <a href="/" class="inline-flex items-center text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium">
+                    ホームに戻る
+                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="lg:w-1/3">
+        <!-- Back to All Categories -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-8">
+            <h3 class="text-lg font-bold mb-4">カテゴリナビゲーション</h3>
+            <div class="space-y-3">
+                <a href="/" 
+                   class="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z"></path>
+                    </svg>
+                    すべてのカテゴリ
+                </a>
+                <a href="/api/posts" 
+                   class="flex items-center text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
+                    <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    すべての記事
+                </a>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
+            <h3 class="text-lg font-bold mb-4">統計情報</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600 dark:text-gray-400">このカテゴリの記事数</span>
+                    <span class="font-bold text-primary-600 dark:text-primary-400">{{ total_posts }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-gray-600 dark:text-gray-400">現在のページ</span>
+                    <span class="font-bold">{{ page }} / {{ total_pages }}</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+</style>
+{% endblock %}

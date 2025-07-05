@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}LLM記事インポート - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">LLM記事インポート</h1>
+        <a href="/admin" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+            ダッシュボードに戻る
+        </a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">記事のインポート</h2>
+            <p class="text-gray-600 mt-1">ChatGPT、Claude、またはその他のLLMで生成した記事をインポートします。</p>
+        </div>
+        
+        <form method="post" action="/admin/import" class="p-6 space-y-6">
+            <!-- Content Input -->
+            <div>
+                <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
+                    記事コンテンツ *
+                </label>
+                <textarea
+                    id="content"
+                    name="content"
+                    rows="15"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="LLMで生成した記事の内容をここに貼り付けてください..."
+                ></textarea>
+                <p class="text-xs text-gray-500 mt-1">
+                    Markdownフォーマットに自動変換されます。
+                </p>
+            </div>
+
+            <!-- Optional Metadata -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+                        タイトル（オプション）
+                    </label>
+                    <input
+                        type="text"
+                        id="title"
+                        name="title"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="空白の場合は自動で抽出されます"
+                    />
+                </div>
+
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700 mb-2">
+                        カテゴリ（オプション）
+                    </label>
+                    <input
+                        type="text"
+                        id="category"
+                        name="category"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="例: tech, lifestyle, etc"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <label for="tags" class="block text-sm font-medium text-gray-700 mb-2">
+                    タグ（オプション）
+                </label>
+                <input
+                    type="text"
+                    id="tags"
+                    name="tags"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="例: rust, programming, web（カンマ区切り）"
+                />
+                <p class="text-xs text-gray-500 mt-1">
+                    複数のタグはカンマで区切ってください。空白の場合は自動で提案されます。
+                </p>
+            </div>
+
+            <!-- Source Selection -->
+            <div>
+                <label for="source" class="block text-sm font-medium text-gray-700 mb-2">
+                    ソース *
+                </label>
+                <select
+                    id="source"
+                    name="source"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                    <option value="">選択してください</option>
+                    <option value="chatgpt">ChatGPT</option>
+                    <option value="claude">Claude</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="custom">その他</option>
+                </select>
+            </div>
+
+            <!-- Publishing Options -->
+            <div class="space-y-3">
+                <h3 class="text-lg font-medium text-gray-900">公開設定</h3>
+                
+                <div class="flex items-center">
+                    <input
+                        type="checkbox"
+                        id="published"
+                        name="published"
+                        value="true"
+                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label for="published" class="ml-2 block text-sm text-gray-700">
+                        インポート後すぐに公開する
+                    </label>
+                </div>
+
+                <div class="flex items-center">
+                    <input
+                        type="checkbox"
+                        id="featured"
+                        name="featured"
+                        value="true"
+                        class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label for="featured" class="ml-2 block text-sm text-gray-700">
+                        注目記事として設定
+                    </label>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex justify-end space-x-4">
+                <button
+                    type="button"
+                    onclick="history.back()"
+                    class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                    キャンセル
+                </button>
+                <button
+                    type="submit"
+                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                    インポート実行
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Help Section -->
+    <div class="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-blue-900 mb-3">使用方法</h3>
+        <ul class="text-blue-800 space-y-2 text-sm">
+            <li>• LLMで生成した記事の内容をコンテンツエリアに貼り付けてください</li>
+            <li>• タイトルが指定されていない場合、コンテンツから自動で抽出されます</li>
+            <li>• カテゴリやタグが空白の場合、コンテンツから自動で提案されます</li>
+            <li>• 「すぐに公開する」をチェックしない場合、下書きとして保存されます</li>
+            <li>• インポート後、プレビューページで内容を確認できます</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+// Auto-resize textarea
+document.getElementById('content').addEventListener('input', function () {
+    this.style.height = 'auto';
+    this.style.height = this.scrollHeight + 'px';
+});
+</script>
+{% endblock %}

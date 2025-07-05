@@ -227,5 +227,112 @@ blog-system/
 └── README.md
 ```
 
+## テンプレート・テーマ機能
+
+### 概要
+このブログシステムでは、複数のテンプレートテーマを切り替えることができます。環境変数により簡単にブログの見た目を変更できます。
+
+### 利用可能なテーマ
+
+#### 1. default テーマ
+- **説明**: 標準的なデザイン
+- **特徴**: TailwindCSS + カスタムCSS、ダークモード対応、レスポンシブデザイン
+- **用途**: 汎用的なブログデザイン
+
+#### 2. minimal テーマ
+- **説明**: ミニマルで軽量なデザイン
+- **特徴**: シンプルなスタイリング、読みやすさ重視、軽量
+- **用途**: テキスト中心のブログ、高速表示が必要な場合
+
+#### 3. modern テーマ
+- **説明**: モダンでスタイリッシュなデザイン
+- **特徴**: グラデーション、アニメーション効果、カード型レイアウト
+- **用途**: 視覚的にリッチなプレゼンテーション
+
+#### 4. blog テーマ
+- **説明**: 伝統的なブログ風デザイン
+- **特徴**: サイドバー重視、記事読み物に特化
+- **用途**: 従来型のブログスタイル
+
+### テーマの設定方法
+
+#### 環境変数での設定
+```bash
+# テーマの指定（デフォルト: default）
+export BLOG_TEMPLATE=minimal
+
+# 利用可能なテーマ: default, minimal, modern, blog
+```
+
+#### Docker環境での設定
+```yaml
+# docker-compose.yml
+services:
+  tobelog:
+    environment:
+      - BLOG_TEMPLATE=modern
+```
+
+#### systemdサービスでの設定
+```ini
+# /etc/systemd/system/tobelog.service
+[Service]
+Environment="BLOG_TEMPLATE=minimal"
+```
+
+### テーマディレクトリ構造
+```
+templates/
+├── default/                   # デフォルトテーマ
+│   ├── base.html
+│   ├── index.html
+│   ├── post.html
+│   ├── category.html
+│   ├── tag.html
+│   └── admin/
+│       ├── base.html
+│       ├── dashboard.html
+│       ├── post_form.html
+│       ├── post_list.html
+│       ├── import.html
+│       └── import_result.html
+├── minimal/                   # ミニマルテーマ
+│   ├── base.html
+│   ├── index.html
+│   ├── post.html
+│   ├── category.html
+│   ├── tag.html
+│   └── admin/
+├── modern/                    # モダンテーマ
+│   ├── base.html
+│   ├── index.html
+│   ├── post.html
+│   ├── category.html
+│   ├── tag.html
+│   └── admin/
+└── blog/                      # ブログテーマ
+    ├── base.html
+    ├── index.html
+    ├── post.html
+    ├── category.html
+    ├── tag.html
+    └── admin/
+```
+
+### フォールバック機能
+- 指定されたテーマが存在しない場合は、自動的に`default`テーマにフォールバックします
+- `default`テーマが存在しない場合はエラーが発生します
+
+### カスタムテーマの作成
+1. `templates/`ディレクトリに新しいテーマディレクトリを作成
+2. 必要なテンプレートファイル（`base.html`, `index.html`等）を配置
+3. `admin/`サブディレクトリに管理画面用テンプレートを配置
+4. 環境変数`BLOG_TEMPLATE`でテーマ名を指定
+
+### 注意事項
+- テーマ変更後はサーバーの再起動が必要です
+- 全てのテーマでレスポンシブデザインに対応しています
+- 管理画面も含めてテーマが適用されます
+
 このシステムは、シンプルさと拡張性のバランスを重視し、個人ブログとして必要十分な機能を提供します。Dropboxの信頼性とRustの高パフォーマンスを活かし、運用コストを最小限に抑えながら、快適なブログ執筆環境を実現します。
 

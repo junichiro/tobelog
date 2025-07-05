@@ -64,9 +64,9 @@ async fn main() -> anyhow::Result<()> {
     let markdown = Arc::new(MarkdownService::new());
     info!("Markdown service initialized");
 
-    // Initialize template service
-    let templates = Arc::new(TemplateService::new()?);
-    info!("Template service initialized");
+    // Initialize template service with theme from config
+    let templates = Arc::new(TemplateService::new_with_theme(&config.template_theme)?);
+    info!("Template service initialized with theme: {}", config.template_theme);
 
     // Initialize LLM import service
     let llm_import = Arc::new(LLMImportService::new(

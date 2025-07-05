@@ -1,33 +1,67 @@
 use anyhow::{Context, Result};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
 use tera::Tera;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// Template service for rendering HTML using Tera
 #[derive(Clone)]
 pub struct TemplateService {
     tera: Tera,
+    theme: String,
 }
 
 impl TemplateService {
-    /// Create a new template service
+    /// Create a new template service with default theme
     pub fn new() -> Result<Self> {
-        info!("Initializing Tera template engine");
+        Self::new_with_theme("default")
+    }
+    
+    /// Create a new template service with specified theme
+    pub fn new_with_theme(theme: &str) -> Result<Self> {
+        info!("Initializing Tera template engine with theme: {}", theme);
 
-        let mut tera = Tera::new("templates/**/*.html")
+        // Check if theme directory exists, fallback to default if not
+        let theme_path = format!("templates/{}", theme);
+        let actual_theme = if Path::new(&theme_path).exists() {
+            theme.to_string()
+        } else {
+            warn!("Theme '{}' not found, falling back to 'default'", theme);
+            if !Path::new("templates/default").exists() {
+                return Err(anyhow::anyhow!("Default theme directory not found"));
+            }
+            "default".to_string()
+        };
+
+        let template_pattern = format!("templates/{}/**/*.html", actual_theme);
+        let mut tera = Tera::new(&template_pattern)
             .context("Failed to initialize Tera template engine")?;
 
         // Register custom filters
         tera.register_filter("truncate", truncate_filter);
 
-        info!("Template engine initialized successfully");
+        info!("Template engine initialized successfully with theme: {}", actual_theme);
         debug!(
             "Available templates: {:?}",
             tera.get_template_names().collect::<Vec<_>>()
         );
 
-        Ok(Self { tera })
+        Ok(Self { 
+            tera,
+            theme: actual_theme,
+        })
+    }
+    
+    /// Get current theme name
+    pub fn get_theme(&self) -> &str {
+        &self.theme
+    }
+    
+    /// Check if template exists
+    pub fn has_template(&self, template_name: &str) -> bool {
+        self.tera.get_template(template_name).is_ok()
     }
 
     /// Render a template with context
@@ -275,6 +309,31 @@ impl From<crate::models::PostStats> for BlogStats {
                 .collect(),
         }
     }
+}
+
+/// Get list of available themes
+pub fn get_available_themes() -> Result<Vec<String>> {
+    let templates_dir = Path::new("templates");
+    if !templates_dir.exists() {
+        return Err(anyhow::anyhow!("Templates directory not found"));
+    }
+
+    let mut themes = Vec::new();
+    for entry in fs::read_dir(templates_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            if let Some(theme_name) = path.file_name().and_then(|name| name.to_str()) {
+                themes.push(theme_name.to_string());
+            }
+        }
+    }
+
+    if themes.is_empty() {
+        return Err(anyhow::anyhow!("No themes found in templates directory"));
+    }
+
+    Ok(themes)
 }
 
 #[cfg(test)]
