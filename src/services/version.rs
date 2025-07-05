@@ -12,6 +12,7 @@ use crate::services::{DatabaseService, MarkdownService};
 #[derive(Clone)]
 pub struct VersionService {
     database: DatabaseService,
+    #[allow(dead_code)]
     markdown: MarkdownService,
 }
 
@@ -233,6 +234,7 @@ impl VersionService {
     }
 
     /// Auto-create version when post is updated
+    #[allow(dead_code)]
     pub async fn auto_version_on_update(&self, old_post: &Post, new_post: &Post) -> Result<()> {
         debug!(
             "Auto-versioning post {} from version {} to {}",
@@ -351,6 +353,7 @@ impl VersionService {
     }
 
     /// Generate automatic change summary
+    #[allow(dead_code)]
     fn generate_change_summary(&self, old_post: &Post, new_post: &Post) -> String {
         let mut changes = Vec::new();
 

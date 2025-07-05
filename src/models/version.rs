@@ -117,11 +117,13 @@ impl From<crate::models::Post> for CreatePostVersion {
 
 impl PostVersion {
     /// Get tags as a vector from JSON string
+    #[allow(dead_code)]
     pub fn get_tags(&self) -> Vec<String> {
         self.tags.clone()
     }
 
     /// Check if this version is a major change (title, category, or significant content changes)
+    #[allow(dead_code)]
     pub fn is_major_change(&self, previous: Option<&PostVersion>) -> bool {
         match previous {
             Some(prev) => {
@@ -144,6 +146,7 @@ impl PostVersion {
     }
 
     /// Calculate content difference ratio (0.0 = no change, 1.0 = completely different)
+    #[allow(dead_code)]
     fn calculate_content_diff_ratio(&self, other_content: &str) -> f64 {
         let self_len = self.content.len() as f64;
         let other_len = other_content.len() as f64;

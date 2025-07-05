@@ -36,6 +36,7 @@ pub struct BlogConfig {
 }
 
 /// Site metadata and statistics
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SiteMetadata {
     pub total_posts: i64,
@@ -49,6 +50,7 @@ pub struct SiteMetadata {
 }
 
 /// Category metadata
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryMeta {
     pub name: String,
@@ -59,6 +61,7 @@ pub struct CategoryMeta {
 }
 
 /// Tag metadata
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagMeta {
     pub name: String,
@@ -69,6 +72,7 @@ pub struct TagMeta {
 }
 
 /// Post summary for metadata (renamed to avoid conflict)
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetaPostSummary {
     pub slug: String,
@@ -81,6 +85,7 @@ pub struct MetaPostSummary {
 }
 
 /// Media file metadata
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MediaMetadata {
     pub path: String,
