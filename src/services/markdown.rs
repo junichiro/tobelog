@@ -153,44 +153,46 @@ impl MarkdownService {
         &self,
         content: &str,
     ) -> Result<(HashMap<String, serde_yaml::Value>, String)> {
-        let content = content.trim();
-
-        // Find the end of JSON object
+        let content = content.trim_start();
+        
+        // Try to find the end of JSON by looking for balanced braces
+        // This is a simplified but more robust approach than manual parsing
         let mut brace_count = 0;
         let mut json_end = 0;
         let mut in_string = false;
         let mut escape_next = false;
-
-        for (i, ch) in content.chars().enumerate() {
+        
+        for (i, ch) in content.char_indices() {
             if escape_next {
                 escape_next = false;
                 continue;
             }
-
+            
             match ch {
                 '\\' if in_string => escape_next = true,
-                '"' if !in_string => in_string = true,
-                '"' if in_string => in_string = false,
-                '{' if !in_string => brace_count += 1,
+                '"' => in_string = !in_string,
+                '{' if !in_string => {
+                    brace_count += 1;
+                }
                 '}' if !in_string => {
                     brace_count -= 1;
                     if brace_count == 0 {
-                        json_end = i + 1;
+                        json_end = i + ch.len_utf8();
                         break;
                     }
                 }
                 _ => {}
             }
         }
-
-        if json_end == 0 {
+        
+        if json_end == 0 || brace_count != 0 {
             warn!("Invalid JSON frontmatter format");
             return Ok((HashMap::new(), content.to_string()));
         }
-
+        
         let frontmatter_str = &content[..json_end];
         let markdown_content = content[json_end..].trim();
-
+        
         // Parse JSON and convert to serde_yaml::Value
         let json_value: serde_json::Value = match serde_json::from_str(frontmatter_str) {
             Ok(val) => val,
@@ -202,7 +204,6 @@ impl MarkdownService {
 
         // Convert JSON to YAML value
         let yaml_value: serde_yaml::Value = serde_json::from_value(json_value)?;
-        
         let frontmatter = self.yaml_value_to_hashmap(yaml_value);
 
         debug!("Extracted {} JSON frontmatter fields", frontmatter.len());
@@ -489,10 +490,16 @@ invalid: yaml: syntax
 本文です。"#;
 
         // 無効なフロントマターの場合、フロントマターなしとして扱う
-        let result = service.parse_markdown(content);
-        assert!(result.is_ok());
-        let parsed = result.unwrap();
-        // フロントマターが空、またはコンテンツ全体が本文として扱われることを確認
-        assert!(parsed.html.contains("Content") || parsed.html.contains("---"));
+        let result = service.parse_markdown(content).unwrap();
+
+        // フロントマターが空であることを確認
+        assert!(result.frontmatter.is_empty());
+
+        // コンテンツ全体が本文として扱われることを確認
+        // pulldown-cmarkは '---' を <hr /> に変換し、'invalid: yaml: syntax' を H2見出しに変換する
+        assert!(result.html.contains("<hr />"));
+        assert!(result.html.contains("<h2>invalid: yaml: syntax</h2>"));
+        assert!(result.html.contains("<h1>Content</h1>"));
+        assert!(result.html.contains("<p>本文です。</p>"));
     }
 }

@@ -48,7 +48,6 @@
 │       └── 01-new-year-post.md
 ├── drafts/                   # 下書き
 │   └── draft-post.md
-├── /drafts/                  # 下書きフォルダ（別パス表記）
 └── media/                    # メディアファイル
     ├── images/
     │   ├── 2024/
@@ -381,7 +380,7 @@ class ToBelogClient:
             'category': category,
             'tags': tags or [],
             'published': published,
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.utcnow().isoformat() + 'Z'
         }
         response = requests.post(url, headers=self.headers, json=data)
         return response.json()
@@ -433,12 +432,13 @@ new_post = client.create_post(
 print(f"作成した記事: {new_post}")
 
 # 記事を更新
-updated_post = client.update_post(
-    slug="python-api-test",
-    title="更新されたタイトル",
-    published=True
-)
-print(f"更新結果: {updated_post}")
+if new_post.get("slug"):
+    updated_post = client.update_post(
+        slug=new_post["slug"],
+        title="更新されたタイトル",
+        published=True
+    )
+    print(f"更新結果: {updated_post}")
 
 # Dropboxと同期
 sync_result = client.sync_dropbox()
