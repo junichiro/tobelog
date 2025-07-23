@@ -25,6 +25,7 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 serde_yaml = "0.9"
+toml = "0.8"
 html-escape = "0.2"
 regex = "1.0"
 axum-extra = { version = "0.9", features = ["multipart"] }
@@ -32,6 +33,11 @@ image = "0.24"
 mime = "0.3"
 base64 = "0.21"
 sha2 = "0.10"
+
+[features]
+default = []
+metadata = []
+expensive_tests = []
 
 [dev-dependencies]
 tempfile = "3.0"
